@@ -20,7 +20,7 @@ db eval {
 	CREATE TABLE IF NOT EXISTS tags(
 		uid INTEGER PRIMARY KEY,
 		name TEXT UNIQUE NOT NULL,
-		active INTEGER NOT NULL
+		active INTEGER NOT NULL DEFAULT 1
 	);
 	CREATE INDEX IF NOT EXISTS tags_idx ON tags(name);
 	CREATE TABLE IF NOT EXISTS fact_tags(
@@ -60,6 +60,7 @@ proc add_fact {front back extra_data type {tags {}}} {
 	set tag_uids {}
 	lappend tags _all
 	foreach tag $tags {
+		db eval {INSERT OR IGNORE INTO tags(name) VALUES($tag)}
 		lappend tag_uids [db eval {SELECT uid FROM tags WHERE name=$tag}]
 	}
 	foreach uid [lsort -unique $tag_uids] {
@@ -77,6 +78,26 @@ proc update_fact {fact_uid front back extra_data type {tags {}}} {
 		db eval {DELETE FROM cards WHERE fact_uid=$fact_uid AND fact_data = 'P'}
 		db eval {UPDATE cards SET fact_data = '' WHERE fact_uid=$fact_uid}
 	}
+}
+
+proc update_tags_for_fact {fact_uid tags} {
+	set otags [db eval {
+		SELECT name FROM tags
+		WHERE EXISTS(SELECT 1 FROM fact_tags WHERE fact_uid=$fact_uid AND tag_uid = tags.uid)
+	}
+	# add new tags
+	foreach tag $tags {
+		if {[lsearch -exact $otags tag] < 0} {
+			set uid [db eval {SELECT uid FROM tags WHERE name=$tag}]
+			if {[llength uid] == 0} {
+				db eval {INSERT INTO tags(name) VALUES($tag)}
+				set uid [db last_insert_rowid]
+			}
+			db eval {INSERT INTO fact_tags VALUES($fact_uid, $uid)}
+		}
+	}
+	# deleting old tags
+	# TODO 
 }
 
 proc create_tag {tag} {
@@ -200,10 +221,10 @@ proc test {} {
 			#AND tags
 	#}]
 	test_review_new
-	#db eval {SELECT * FROM tags} tags {
-		#parray tags
-		#puts ""
-	#}
+	db eval {SELECT * FROM tags} tags {
+		parray tags
+		puts ""
+	}
 	#db eval {SELECT * FROM facts} facts {
 		#parray facts
 		#puts ""
