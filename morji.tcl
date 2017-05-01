@@ -83,6 +83,10 @@ proc create_tag {tag} {
 	db eval {INSERT INTO tags(name, active) VALUES($tag, 1)}
 }
 
+proc delete_tag {tag} {
+	db eval {DELETE FROM tags WHERE name=$tag}
+}
+
 proc activate_tag {tag {active 1}} {
 	db eval {UPDATE tags SET active=$active WHERE tag=$tag}
 }
@@ -118,15 +122,14 @@ proc get_new_cards {} {
 }
 
 proc get_card_user_info {uid} {
-	return [db eval {SELECT facts.front, facts.back FROM cards, facts WHERE cards.uid=$uid AND facts.uid = cards.fact_uid} break]
+	return [db eval {
+		SELECT facts.front, facts.back FROM cards, facts
+		WHERE cards.uid=$uid AND facts.uid = cards.fact_uid
+	}]
 }
 
 proc delete_fact {uid} {
 	db eval {DELETE FROM facts WHERE uid=$uid}
-}
-
-proc delete_tag {tag} {
-	db eval {DELETE FROM tags WHERE name=$tag}
 }
 
 proc schedule_card {uid grade} {
@@ -149,18 +152,22 @@ proc schedule_card {uid grade} {
 	}
 }
 
-proc main {} {
+proc test_review_new {} {
+	global START_TIME
+	set START_TIME [clock add $START_TIME 1 day]
 	set card_uids [get_today_cards]
 	set i 0
 	foreach card $card_uids {
 		incr i
 		foreach f [get_card_user_info $card] {
+			puts "review: $card $f"
 		}
 	}
 	set card_uids [get_new_cards]
 	foreach card $card_uids {
 		incr i
 		foreach f [get_card_user_info $card] {
+			puts "new: $card $f"
 		}
 	}
 	puts $i
@@ -192,7 +199,7 @@ proc test {} {
 			#tags.active = 1
 			#AND tags
 	#}]
-	main
+	test_review_new
 	#db eval {SELECT * FROM tags} tags {
 		#parray tags
 		#puts ""
