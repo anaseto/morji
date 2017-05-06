@@ -182,8 +182,20 @@ proc get_new_cards {} {
 
 proc get_card_user_info {uid} {
     return [db eval {
-        SELECT facts.front, facts.back FROM cards, facts
+        SELECT facts.front, facts.back, facts.extra_data, facts.type
+        FROM cards, facts
         WHERE cards.uid=$uid AND facts.uid = cards.fact_uid
+    }]
+}
+
+proc get_card_tags {uid} {
+    return [db eval {
+        SELECT name FROM tags
+        WHERE EXISTS(
+            SELECT 1 FROM cards, fact_tags
+            WHERE cards.uid=$uid
+            AND fact_tags.fact_uid = cards.fact_uid
+            AND tag_uid = tags.uid)
     }]
 }
 
@@ -208,9 +220,10 @@ proc schedule_card {uid grade} {
                 set new_next_rep [clock add $new_next_rep [expr {($new_last_rep-$last_rep)*$easyness}] seconds]
             }
         }
-        db eval {UPDATE cards
-             SET last_rep=$new_last_rep, next_rep=$new_next_rep, easyness=$easyness, reps=$reps
-             WHERE uid=$uid}
+        db eval {
+            UPDATE cards
+            SET last_rep=$new_last_rep, next_rep=$new_next_rep, easyness=$easyness, reps=$reps
+            WHERE uid=$uid}
         break
     }
     return "scheduled"
@@ -225,10 +238,11 @@ proc check_field {field_contents field} {
 }
 
 proc parse_card {text} {
-    set fields [textutil::splitx $text {(\\[FBETC])\M}]
+    set fields [textutil::splitx $text {(\\[FBECT])\M}]
     set field_contents [dict create]
     set current_field ""
     foreach f {\F \B \E \C \T} { dict set field_contents $f "" }
+    set fields [concat {*}$fields]
     foreach field $fields {
         switch $field {
             \F - \B - \E - \C - \T {
@@ -237,9 +251,9 @@ proc parse_card {text} {
             }
             default {
                 if {![string equal $current_field ""]} {
-                    dict set $field_contents $current_field [string trim $field]
+                    dict set field_contents $current_field [string trim $field]
                 } elseif {[regexp {\S+} $field]}  {
-                    puts stderr "wandering text outside field"
+                    puts stderr "wandering text outside field: “$field”"
                 }
             }
         }
@@ -268,6 +282,18 @@ proc draw_line {} {
     puts [string repeat ─ [::term::ansi::ctrl::unix::columns]]
 }
 
+proc draw_title_line {title} {
+    set length [string length $title]
+    set columns [::term::ansi::ctrl::unix::columns]
+    set before [expr {(($columns - $length) / 2)}]
+    if {($columns - $length) % 2 == 0} {
+        set after $before
+    } else {
+        set after [expr {$before+1}]
+    }
+    puts [string repeat ─ $before]$title[string repeat ─ $after]
+}
+
 proc get_key {} {
     draw_line
     puts -nonewline "Action (? for help): "
@@ -280,36 +306,54 @@ proc get_key {} {
 }
 
 proc put_question {front} {
-    draw_line
-    puts "Question: $front"
+    draw_title_line " Question "
+    puts $front
 }
 
 proc put_answer {back} {
-    draw_line
-    puts "Answer: $back"
+    draw_title_line " Answer "
+    puts $back
 }
 
-proc edit_new_card {} {
-    set tmp [file tempfile tmpfile]
+proc edit_card {tmp tmpfile} {
     set editor $::env(EDITOR)
     if {[string equal $editor ""]} {
         set editor vim
     }
     exec $editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
     set content [read $tmp]
-    draw_line
-    puts $content
+    draw_title_line " Card "
     lassign [parse_card $content] front back extra_data type tags
-    draw_line
-    puts front
-    draw_line
-    puts back
-    draw_line
-    puts extra_data
-    draw_line
-    puts tags
-    draw_line
-    puts type
+    foreach {f t} [list $front front $back back $extra_data extra_data $type type $tags tags] {
+        draw_title_line " $t "
+        puts $f
+    }
+    set tags [textutil::splitx $tags]
+    add_fact $front $back $extra_data $type $tags
+}
+
+proc edit_new_card {} {
+    set tmp [file tempfile tmpfile]
+    edit_card $tmp $tmpfile
+    close $tmp
+    file delete $tmpfile
+}
+
+proc edit_existent_card {card_uid} {
+    set tmp [file tempfile tmpfile]
+    lassign [get_card_user_info $card_uid] front back extra_data type
+    set tags [get_card_tags $card_uid]
+    set tags [lsearch -inline -all -not -exact $tags _all]
+    puts $tmp "\\F $front"
+    puts $tmp "\\B $back"
+    puts $tmp "\\E $extra_data"
+    puts $tmp "\\C $type"
+    puts $tmp "\\T $tags"
+    flush $tmp
+    seek $tmp 0
+    edit_card $tmp $tmpfile
+    close $tmp
+    file delete $tmpfile
 }
 
 ######################### main loop stuff ################
@@ -324,6 +368,7 @@ proc ask_for_card {card_uid} {
         g { return [schedule_card $card_uid 4] }
         e { return [schedule_card $card_uid 5] }
         N { edit_new_card }
+        E { edit_existent_card $card_uid }
         ? { help }
         Q { puts ""; return quit }
         default { puts "unknown action" }
@@ -337,7 +382,10 @@ proc run {} {
         foreach card $cards {
             set ret ""
             while {![string equal $ret "scheduled"]} {
-                set ret [db transaction {ask_for_card $card}]
+                if {[catch { set ret [db transaction {ask_for_card $card}] } err_msg]} {
+                    draw_line
+                    puts stderr "Error: $err_msg"
+                }
                 switch $ret {
                     quit { quit }
                 }
