@@ -1,5 +1,6 @@
 package require sqlite3
 package require term::ansi::ctrl::unix
+package require term::ansi::send
 package require textutil
 
 sqlite3 db :memory:
@@ -33,9 +34,9 @@ db eval {
     CREATE INDEX IF NOT EXISTS fact_tags_idx2 ON fact_tags(tag_uid);
     CREATE TABLE IF NOT EXISTS facts(
         uid INTEGER PRIMARY KEY,
-        front TEXT NOT NULL,
-        back TEXT NOT NULL,
-        extra_data TEXT NOT NULL,
+        question TEXT NOT NULL,
+        answer TEXT NOT NULL,
+        notes TEXT NOT NULL,
         -- simple/vocabulary(recognition/production)/cloze...
         type TEXT NOT NULL
     )
@@ -45,8 +46,8 @@ set START_TIME [clock seconds]
 
 ######################### managing facts ################ 
 
-proc add_fact {front back extra_data type {tags {}}} {
-    db eval {INSERT INTO facts(front, back, extra_data, type) VALUES($front, $back, $extra_data, $type)}
+proc add_fact {question answer notes type {tags {}}} {
+    db eval {INSERT INTO facts(question, answer, notes, type) VALUES($question, $answer, $notes, $type)}
     set fact_uid [db last_insert_rowid]
     switch $type {
         "simple" {
@@ -74,9 +75,9 @@ proc add_fact {front back extra_data type {tags {}}} {
     }
 }
 
-proc update_fact {fact_uid front back extra_data type tags} {
+proc update_fact {fact_uid question answer notes type tags} {
     set otype [db eval {SELECT type FROM facts WHERE uid=$fact_uid}]
-    db eval {UPDATE facts SET front=$front, back=$back, extra_data=$extra_data WHERE uid=$fact_uid}
+    db eval {UPDATE facts SET question=$question, answer=$answer, notes=$notes WHERE uid=$fact_uid}
     if {[string equal $type simple] && [string equal $otype voc] } {
         db eval {UPDATE cards SET fact_data = 'R' WHERE fact_uid = $fact_uid}
         db eval {INSERT INTO cards(easyness, reps, fact_uid, fact_data) VALUES(2.5, 0, $fact_uid, 'P')}
@@ -97,9 +98,9 @@ proc update_tags_for_fact {fact_uid tags} {
         if {[string equal $tag _all]} {
             continue
         }
-        if {[lsearch -exact $otags tag] < 0} {
-            set uid [db eval {SELECT uid FROM tags WHERE name=$tag}]
-            if {[llength uid] == 0} {
+        if {[lsearch -exact $otags $tag] < 0} {
+            set uid [db onecolumn {SELECT uid FROM tags WHERE name=$tag}]
+            if {[string equal $uid ""]} {
                 db eval {INSERT INTO tags(name) VALUES($tag)}
                 set uid [db last_insert_rowid]
             }
@@ -111,9 +112,9 @@ proc update_tags_for_fact {fact_uid tags} {
         if {[string equal $tag _all]} {
             continue
         }
-        if {[lsearch -exact $tags tag] < 0} {
-            set uid [db eval {SELECT uid FROM tags WHERE name=$tag}]
-            if {[llength uid] == 0} {
+        if {[lsearch -exact $tags $tag] < 0} {
+            set uid [db onecolumn {SELECT uid FROM tags WHERE name=$tag}]
+            if {[string equal $uid ""]} {
                 error "internal error: update_tags_for_fact: tag without uid"
             }
             db eval {DELETE FROM fact_tags WHERE fact_uid=$fact_uid AND tag_uid=$uid)}
@@ -182,7 +183,7 @@ proc get_new_cards {} {
 
 proc get_card_user_info {uid} {
     return [db eval {
-        SELECT facts.front, facts.back, facts.extra_data, facts.type
+        SELECT facts.question, facts.answer, facts.notes, facts.type
         FROM cards, facts
         WHERE cards.uid=$uid AND facts.uid = cards.fact_uid
     }]
@@ -238,14 +239,13 @@ proc check_field {field_contents field} {
 }
 
 proc parse_card {text} {
-    set fields [textutil::splitx $text {(\\[FBECT])\M}]
+    set fields [textutil::splitx $text {(\\(?:Question|Answer|Notes|Type|Tags):)}]
     set field_contents [dict create]
     set current_field ""
-    foreach f {\F \B \E \C \T} { dict set field_contents $f "" }
-    set fields [concat {*}$fields]
+    foreach f {{\Question:} {\Answer:} {\Notes:} {\Type:} {\Tags:}} { dict set field_contents $f "" }
     foreach field $fields {
         switch $field {
-            \F - \B - \E - \C - \T {
+            {\Question:} - {\Answer:} - {\Notes:} - {\Type:} - {\Tags:} {
                 check_field $field_contents $field
                 set current_field $field
             }
@@ -264,7 +264,11 @@ proc parse_card {text} {
 ######################### IO stuff ################ 
 
 proc help {} {
-    puts {? Help:
+    ::term::ansi::send::sda_fggreen
+    puts -nonewline Help:
+    ::term::ansi::send::sda_fgdefault
+
+    puts {
   ? show this help
   q show question
   a show answer
@@ -283,21 +287,17 @@ proc draw_line {} {
 }
 
 proc draw_title_line {title} {
-    set length [string length $title]
-    set columns [::term::ansi::ctrl::unix::columns]
-    set before [expr {(($columns - $length) / 2)}]
-    if {($columns - $length) % 2 == 0} {
-        set after $before
-    } else {
-        set after [expr {$before+1}]
-    }
-    puts [string repeat ─ $before]$title[string repeat ─ $after]
+    ::term::ansi::send::sda_fgyellow
+    puts -nonewline "$title: "
+    flush stdout
+    ::term::ansi::send::sda_fgdefault
 }
 
 proc get_key {} {
-    draw_line
-    puts -nonewline "Action (? for help): "
+    ::term::ansi::send::sda_fgblue
+    puts -nonewline ">> "
     flush stdout
+    ::term::ansi::send::sda_fgdefault
     ::term::ansi::ctrl::unix::raw
     set key [read stdin 1]
     ::term::ansi::ctrl::unix::cooked
@@ -305,53 +305,64 @@ proc get_key {} {
     return $key
 }
 
-proc put_question {front} {
-    draw_title_line " Question "
-    puts $front
+proc put_question {question} {
+    draw_title_line "Question"
+    puts $question
 }
 
-proc put_answer {back} {
-    draw_title_line " Answer "
-    puts $back
+proc put_answer {answer} {
+    draw_title_line "Answer"
+    puts $answer
 }
 
-proc edit_card {tmp tmpfile} {
+proc edit_card {tmp tmpfile fact_uid} {
     set editor $::env(EDITOR)
     if {[string equal $editor ""]} {
         set editor vim
     }
     exec $editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
     set content [read $tmp]
-    draw_title_line " Card "
-    lassign [parse_card $content] front back extra_data type tags
-    foreach {f t} [list $front front $back back $extra_data extra_data $type type $tags tags] {
-        draw_title_line " $t "
+    lassign [parse_card $content] question answer notes type tags
+    foreach {f t} [list $question Question $answer Answer $notes Notes $type Type $tags Tags] {
+        draw_title_line "$t"
         puts $f
     }
     set tags [textutil::splitx $tags]
-    add_fact $front $back $extra_data $type $tags
+    if {![string equal $fact_uid ""]} {
+        update_fact $fact_uid $question $answer $notes $type $tags
+    } else {
+        add_fact $question $answer $notes $type $tags
+    }
 }
 
 proc edit_new_card {} {
     set tmp [file tempfile tmpfile]
-    edit_card $tmp $tmpfile
+    puts $tmp "\\Question: "
+    puts $tmp "\\Answer: "
+    puts $tmp "\\Notes: "
+    puts $tmp "\\Type: "
+    puts $tmp "\\Tags: "
+    flush $tmp
+    seek $tmp 0
+    edit_card $tmp $tmpfile ""
     close $tmp
     file delete $tmpfile
 }
 
 proc edit_existent_card {card_uid} {
     set tmp [file tempfile tmpfile]
-    lassign [get_card_user_info $card_uid] front back extra_data type
+    lassign [get_card_user_info $card_uid] question answer notes type
     set tags [get_card_tags $card_uid]
     set tags [lsearch -inline -all -not -exact $tags _all]
-    puts $tmp "\\F $front"
-    puts $tmp "\\B $back"
-    puts $tmp "\\E $extra_data"
-    puts $tmp "\\C $type"
-    puts $tmp "\\T $tags"
+    puts $tmp "\\Question: $question"
+    puts $tmp "\\Answer: $answer"
+    puts $tmp "\\Notes: $notes"
+    puts $tmp "\\Type: $type"
+    puts $tmp "\\Tags: $tags"
     flush $tmp
     seek $tmp 0
-    edit_card $tmp $tmpfile
+    db eval {SELECT fact_uid FROM cards WHERE uid=$card_uid} break
+    edit_card $tmp $tmpfile $fact_uid
     close $tmp
     file delete $tmpfile
 }
@@ -359,10 +370,10 @@ proc edit_existent_card {card_uid} {
 ######################### main loop stuff ################
 
 proc ask_for_card {card_uid} {
-    lassign [get_card_user_info $card_uid] front back
+    lassign [get_card_user_info $card_uid] question answer
     switch [get_key] {
-        q { put_question $front }
-        a { put_answer $back }
+        q { put_question $question }
+        a { put_answer $answer }
         r { return [schedule_card $card_uid 0] }
         h { return [schedule_card $card_uid 2] }
         g { return [schedule_card $card_uid 4] }
@@ -371,20 +382,26 @@ proc ask_for_card {card_uid} {
         E { edit_existent_card $card_uid }
         ? { help }
         Q { puts ""; return quit }
-        default { puts "unknown action" }
+        default { 
+            ::term::ansi::send::sda_fgred
+            puts "Error: unknown key"
+            ::term::ansi::send::sda_fgdefault
+        }
     }
     return
 }
 
 proc run {} {
+    puts "Type ? for help."
     foreach f {get_today_cards get_forgotten_cards get_new_cards} {
         set cards [db transaction {$f}]
         foreach card $cards {
             set ret ""
             while {![string equal $ret "scheduled"]} {
                 if {[catch { set ret [db transaction {ask_for_card $card}] } err_msg]} {
-                    draw_line
+                    ::term::ansi::send::sda_fgred
                     puts stderr "Error: $err_msg"
+                    ::term::ansi::send::sda_fgdefault
                 }
                 switch $ret {
                     quit { quit }
@@ -409,17 +426,17 @@ proc test_review_new {} {
     foreach card $card_uids {
         incr i
         foreach f [get_card_user_info $card] {
-            puts "review: $card $f"
+            #puts "review: $card $f"
         }
     }
     set card_uids [get_new_cards]
     foreach card $card_uids {
         incr i
         foreach f [get_card_user_info $card] {
-            puts "new: $card $f"
+            #puts "new: $card $f"
         }
     }
-    puts $i
+    #puts $i
 }
 
 proc test {} {
@@ -450,8 +467,8 @@ proc test {} {
     #}]
     test_review_new
     db eval {SELECT * FROM tags} tags {
-        parray tags
-        puts ""
+        #parray tags
+        #puts ""
     }
     #ask_for_card 2
     run
