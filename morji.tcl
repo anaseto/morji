@@ -573,6 +573,10 @@ proc main {} {
     puts "Type ? for help."
     try {
         run
+    } on error {result} {
+        with_color red {
+            puts stderr "Fatal Error: $result"
+        }
     } finally {
         quit
     }
@@ -603,11 +607,7 @@ proc test {} {
     }
     #puts [check_database]
     #dump_database
-    if {[catch { main } err_msg]} {
-        with_color red {
-            puts stderr "Fatal Error: $err_msg"
-        }
-    }
+    main
     #set START_TIME [clock add $::START_TIME 1 day]
 }
 
