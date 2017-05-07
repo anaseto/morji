@@ -147,10 +147,12 @@ proc create_tag {tag} {
 }
 
 proc delete_tag {tag} {
+    # XXX: unused
     db eval {DELETE FROM tags WHERE name=$tag}
 }
 
 proc delete_fact {uid} {
+    # XXX: unused
     db eval {DELETE FROM facts WHERE uid=$uid}
 }
 
