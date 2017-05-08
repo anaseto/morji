@@ -245,9 +245,15 @@ proc deselect_tags {pattern} {
 proc schedule_card {uid grade} {
     db eval {SELECT last_rep, next_rep, easyness, reps FROM cards WHERE uid=$uid} {
         if {!(($reps == 0) && ($grade < 2))} {
+            # not new or forgotten
             set easyness [expr {$easyness + (0.1 - (5.0-$grade)*(0.08 + (5.0-$grade)*0.02))}]
             set new_last_rep $::START_TIME
             set new_next_rep $new_last_rep
+        } else {
+            break
+        }
+        if {$easyness < 1.3} {
+            set easyness 1.3
         }
         incr reps
         if {$grade == 0} {
@@ -305,9 +311,9 @@ proc parse_card {text} {
 
 ######################### IO stuff ################ 
 
-proc get_key {} {
+proc get_key {prompt} {
     with_color blue {
-        puts -nonewline ">> "
+        puts -nonewline "$prompt "
         flush stdout
     }
     ::term::ansi::ctrl::unix::raw
@@ -467,6 +473,14 @@ proc with_color {color script} {
     }
 }
 
+proc put_info {phase n} {
+    switch $phase {
+        get_today_cards { show_info "Review $n memorized cards" }
+        get_forgotten_cards { show_info "Review $n forgotten cards" }
+        get_new_cards { show_info "Memorize $n new cards" }
+    }
+}
+
 ######################### main loop stuff ################
 
 proc ask_for_card {card_uid} {
@@ -476,7 +490,7 @@ proc ask_for_card {card_uid} {
         put_tags $type [get_card_tags $card_uid]
         put_question $question $answer $type $fact_data
     }
-    set key [get_key]
+    set key [get_key ">>"]
     switch $key {
         q { 
             put_tags $type [get_card_tags $card_uid]
@@ -524,20 +538,20 @@ proc ask_for_card {card_uid} {
     error "invalid key"
 }
 
+
 proc run {} {
     set found_cards 0
     foreach f {get_today_cards get_forgotten_cards get_new_cards} {
         set cards [db transaction {$f}]
         if {[llength $cards] > 0} {
             set found_cards 1
-            draw_line
-            switch $f {
-                get_today_cards { show_info "Review [llength $cards] memorized cards" }
-                get_forgotten_cards { show_info "Review [llength $cards] forgotten cards" }
-                get_new_cards { show_info "Memorize [llength $cards] new cards" }
-            }
+            set n [llength $cards]
         }
         foreach card $cards {
+            ::term::ansi::send::clear
+            puts "Type ? for help."
+            put_info $f $n
+            incr n -1
             set ret ""
             set ::FIRST_ACTION_FOR_CARD 1
             set ::ANSWER_ALREADY_SEEN 0
@@ -564,6 +578,7 @@ proc run {} {
         draw_line
         show_info "... Next Day (testing)"
         draw_line
+        get_key "(press any key)>>"
         puts -nonewline "from [clock format $::START_TIME] "
         set ::START_TIME [clock add $::START_TIME 1 day]
         puts "to [clock format $::START_TIME]"
@@ -572,7 +587,6 @@ proc run {} {
 }
 
 proc main {} {
-    puts "Type ? for help."
     try {
         run
     } on error {result} {
