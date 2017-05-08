@@ -2,62 +2,56 @@ package require sqlite3
 package require term::ansi::ctrl::unix
 package require term::ansi::send
 package require textutil
+::term::ansi::send::import
 
 ######################### globals ################ 
 
-sqlite3 db :memory:
+proc init_globals {} {
+    sqlite3 db :memory:
+    #sqlite3 db /tmp/morji_test.db
 
-db eval {
-    PRAGMA foreign_keys = ON;
-    CREATE TABLE IF NOT EXISTS cards(
-        uid INTEGER PRIMARY KEY,
+    db eval {
+        PRAGMA foreign_keys = ON;
+        CREATE TABLE IF NOT EXISTS cards(
+            uid INTEGER PRIMARY KEY,
+            -- last repetition time (null for new cards)
+            last_rep INTEGER,
+            -- next repetition time (null for new cards)
+            next_rep INTEGER CHECK(next_rep ISNULL OR last_rep < next_rep),
+            easyness REAL NOT NULL DEFAULT 2.5 CHECK(easyness >= 1.3),
+            -- number of repetitions (0 for new and forgotten cards)
+            reps INTEGER NOT NULL,
+            fact_uid INTEGER NOT NULL REFERENCES facts ON DELETE CASCADE,
+            -- additional data whose meaning depends on facts.type
+            fact_data TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS cards_idx2 ON cards(fact_uid);
+        CREATE TABLE IF NOT EXISTS tags(
+            uid INTEGER PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE INDEX IF NOT EXISTS tags_idx ON tags(name);
+        CREATE TABLE IF NOT EXISTS fact_tags(
+            fact_uid INTEGER NOT NULL REFERENCES facts ON DELETE CASCADE,
+            tag_uid INTEGER NOT NULL REFERENCES tags ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS fact_tags_idx1 ON fact_tags(fact_uid);
+        CREATE INDEX IF NOT EXISTS fact_tags_idx2 ON fact_tags(tag_uid);
+        CREATE TABLE IF NOT EXISTS facts(
+            uid INTEGER PRIMARY KEY,
+            question TEXT NOT NULL,
+            answer TEXT NOT NULL,
+            notes TEXT NOT NULL,
+            -- simple/voc(recognition/production)/cloze...
+            type TEXT NOT NULL
+        )
+    }
 
-        last_rep INTEGER,
-        next_rep INTEGER,
-        easyness REAL NOT NULL,
-        reps INTEGER NOT NULL,
-
-        fact_uid INTEGER NOT NULL REFERENCES facts ON DELETE CASCADE,
-        -- additional data whose meaning depends on facts.type
-        fact_data TEXT NOT NULL,
-
-        CHECK(easyness >= 1.3),
-        CHECK(next_rep ISNULL OR last_rep <= next_rep)
-    );
-    CREATE INDEX IF NOT EXISTS cards_idx2 ON cards(fact_uid);
-    CREATE TABLE IF NOT EXISTS tags(
-        uid INTEGER PRIMARY KEY,
-        name TEXT UNIQUE NOT NULL,
-        active INTEGER NOT NULL DEFAULT 1
-    );
-    CREATE INDEX IF NOT EXISTS tags_idx ON tags(name);
-    CREATE TABLE IF NOT EXISTS fact_tags(
-        fact_uid INTEGER NOT NULL REFERENCES facts ON DELETE CASCADE,
-        tag_uid INTEGER NOT NULL REFERENCES tags ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS fact_tags_idx1 ON fact_tags(fact_uid);
-    CREATE INDEX IF NOT EXISTS fact_tags_idx2 ON fact_tags(tag_uid);
-    CREATE TABLE IF NOT EXISTS facts(
-        uid INTEGER PRIMARY KEY,
-        question TEXT NOT NULL,
-        answer TEXT NOT NULL,
-        notes TEXT NOT NULL,
-        -- simple/vocabulary(recognition/production)/cloze...
-        type TEXT NOT NULL
-    )
+    set ::START_TIME [clock seconds]
+    set ::FIRST_ACTION_FOR_CARD 1
+    set ::ANSWER_ALREADY_SEEN 0
 }
-
-set START_TIME [clock seconds]
-set GET_CARDS_WHERE_CLAUSE {
-    EXISTS(SELECT 1 FROM tags, fact_tags, facts
-        WHERE cards.fact_uid = facts.uid
-        AND tags.uid = fact_tags.tag_uid
-        AND facts.uid = fact_tags.fact_uid
-        AND tags.active = 1)
-}
-set FIRST_ACTION_FOR_CARD 1
-set ANSWER_ALREADY_SEEN 0
-set TEST 1
 
 ######################### managing facts ################ 
 
@@ -66,13 +60,13 @@ proc add_fact {question answer notes type {tags {}}} {
     set fact_uid [db last_insert_rowid]
     switch $type {
         "simple" {
-            db eval {INSERT INTO cards(easyness, reps, fact_uid, fact_data)
-                 VALUES(2.5, 0, $fact_uid, "")}
+            db eval {INSERT INTO cards(reps, fact_uid, fact_data)
+                 VALUES(0, $fact_uid, "")}
         }
         "voc" {
             foreach fact_data {R P} {
-                db eval {INSERT INTO cards(easyness, reps, fact_uid, fact_data)
-                     VALUES(2.5, 0, $fact_uid, $fact_data)}
+                db eval {INSERT INTO cards(reps, fact_uid, fact_data)
+                     VALUES(0, $fact_uid, $fact_data)}
             }
         }
         default {
@@ -95,7 +89,7 @@ proc update_fact {fact_uid question answer notes type tags} {
     db eval {UPDATE facts SET question=$question, answer=$answer, notes=$notes WHERE uid=$fact_uid}
     if {($type eq "simple") && ($otype eq "voc")} {
         db eval {UPDATE cards SET fact_data = 'R' WHERE fact_uid = $fact_uid}
-        db eval {INSERT INTO cards(easyness, reps, fact_uid, fact_data) VALUES(2.5, 0, $fact_uid, 'P')}
+        db eval {INSERT INTO cards(reps, fact_uid, fact_data) VALUES(0, $fact_uid, 'P')}
     } elseif {($type eq "voc") && ($otype eq "simple")} {
         db eval {DELETE FROM cards WHERE fact_uid=$fact_uid AND fact_data = 'P'}
         db eval {UPDATE cards SET fact_data = '' WHERE fact_uid=$fact_uid}
@@ -142,10 +136,6 @@ proc update_tags_for_fact {fact_uid tags} {
     }
 }
 
-proc create_tag {tag} {
-    db eval {INSERT INTO tags(name, active) VALUES($tag, 1)}
-}
-
 proc delete_tag {tag} {
     # XXX: unused
     db eval {DELETE FROM tags WHERE name=$tag}
@@ -163,13 +153,23 @@ proc start_of_day {} {
     return [clock add [clock scan [clock format $::START_TIME -format $fmt] -format $fmt] 2 hours]
 }
 
+proc get_cards_where_clause {} {
+    return {
+        EXISTS(SELECT 1 FROM tags, fact_tags, facts
+            WHERE cards.fact_uid = facts.uid
+            AND tags.uid = fact_tags.tag_uid
+            AND facts.uid = fact_tags.fact_uid
+            AND tags.active = 1)
+    }
+}
+
 proc get_today_cards {} {
     set tomorrow [clock add [start_of_day] 1 day]
     return [db eval [string cat {
         SELECT cards.uid FROM cards
         WHERE next_rep < $tomorrow
         AND reps > 0 AND
-    } $::GET_CARDS_WHERE_CLAUSE {
+    } [get_cards_where_clause] {
         ORDER BY next_rep - last_rep
     }]]
 }
@@ -180,7 +180,7 @@ proc get_forgotten_cards {} {
         SELECT cards.uid FROM cards
         WHERE next_rep < $tomorrow
         AND reps = 0 AND
-    } $::GET_CARDS_WHERE_CLAUSE {
+    } [get_cards_where_clause] {
         ORDER BY next_rep - last_rep
         LIMIT 15
     }]]
@@ -190,7 +190,7 @@ proc get_new_cards {} {
     return [db eval [string cat {
         SELECT cards.uid FROM cards
         WHERE cards.next_rep ISNULL AND
-    } $::GET_CARDS_WHERE_CLAUSE {
+    } [get_cards_where_clause] {
         LIMIT 5
     }]]
 }
@@ -244,19 +244,21 @@ proc deselect_tags {pattern} {
 
 proc schedule_card {uid grade} {
     db eval {SELECT last_rep, next_rep, easyness, reps FROM cards WHERE uid=$uid} {
-        if {!(($reps == 0) && ($grade < 2))} {
-            # not new or forgotten
-            set easyness [expr {$easyness + (0.1 - (5.0-$grade)*(0.08 + (5.0-$grade)*0.02))}]
-            set new_last_rep $::START_TIME
-            set new_next_rep $new_last_rep
-        } else {
+        # only grades 0, 2, 4 and 5 are possible
+        if {(($reps == 0) && ($grade < 2))} {
             break
         }
+        set easyness [expr {$easyness + (0.1 - (5.0-$grade)*(0.08 + (5.0-$grade)*0.02))}]
         if {$easyness < 1.3} {
             set easyness 1.3
         }
-        incr reps
-        if {$grade == 0} {
+        if {$grade >= 2} {
+            set new_last_rep $::START_TIME
+            set new_next_rep $new_last_rep
+            incr reps
+        } else {
+            set new_last_rep $last_rep
+            set new_next_rep $next_rep
             set reps 0
         }
         # TODO: add some randomness and late revision tweaks
@@ -272,7 +274,8 @@ proc schedule_card {uid grade} {
         db eval {
             UPDATE cards
             SET last_rep=$new_last_rep, next_rep=$new_next_rep, easyness=$easyness, reps=$reps
-            WHERE uid=$uid}
+            WHERE uid=$uid
+        }
         break
     }
     return "scheduled"
@@ -300,7 +303,7 @@ proc parse_card {text} {
             default {
                 if {$current_field ne ""} {
                     dict set field_contents $current_field [string trim $field]
-                } elseif {[regexp {\S+} $field]}  {
+                } elseif {[regexp {\S} $field]} {
                     warn "wandering text outside field: “$field”"
                 }
             }
@@ -337,21 +340,32 @@ proc draw_line {} {
 }
 
 proc put_help {} {
-    put_header "Help" cyan
+    put_header "Keys (on current card)" cyan
 
     puts {
-  ?      show this help
-  q      show question again
-  space  show answer
+  q      show current card question again
+  space  show current card answer
   a      grade card as not memorized (again)
   h      grade card recall as hard
   g      grade card recall as good
   e      grade card recall as easy
+  E      edit current card (if any)
+  D      delete current card}
+    put_context_independent_keys
+}
+
+proc put_context_independent_help {} {
+    put_context_independent_keys
+}
+
+proc put_context_independent_keys {} {
+    put_header "Keys" cyan
+    puts {
+  ?      show this help
+  N      new card
   t      select tags with glob pattern
   T      deselect tags with glob pattern
-  N      new card
-  E      edit card
-  Q      quit program}   
+  Q      quit program}
 }
 
 proc put_header {title {color yellow}} {
@@ -392,7 +406,7 @@ proc put_answer {question answer notes type fact_data} {
             }
         }
     }
-    if {$notes ne ""} {
+    if {[regexp {\S} $notes]} {
         put_header "Notes"
         puts $notes
     }
@@ -465,25 +479,33 @@ proc show_info {msg} {
 }
 
 proc with_color {color script} {
-    ::term::ansi::send::sda_fg$color
+    send::sda_fg$color
     try { 
         uplevel $script
     } finally {
-        ::term::ansi::send::sda_fgdefault
+        send::sda_fgdefault
     }
 }
 
 proc put_info {phase n} {
     switch $phase {
-        get_today_cards { show_info "Review $n memorized cards" }
-        get_forgotten_cards { show_info "Review $n forgotten cards" }
-        get_new_cards { show_info "Memorize $n new cards" }
+        get_today_cards { show_info "Review $n memorized cards." }
+        get_forgotten_cards { show_info "Review $n forgotten cards." }
+        get_new_cards { show_info "Memorize $n new cards." }
     }
 }
 
 ######################### main loop stuff ################
 
-proc ask_for_card {card_uid} {
+proc prompt_delete_card {uid} {
+    set key [get_key {Delete card? [Y/n] >>}]
+    if {$key eq "Y"} {
+        db eval {DELETE FROM cards WHERE uid=$uid}
+        return restart
+    }
+}
+
+proc card_prompt {card_uid} {
     lassign [get_card_user_info $card_uid] question answer notes type fact_data
     if {$::FIRST_ACTION_FOR_CARD} {
         draw_line
@@ -502,6 +524,49 @@ proc ask_for_card {card_uid} {
             set ::ANSWER_ALREADY_SEEN 1
             return
         }
+        E { edit_existent_card $card_uid; return }
+        ? { put_help; return }
+        D { return [prompt_delete_card $card_uid] }
+        a - h - g - e {
+            if {!$::ANSWER_ALREADY_SEEN} {
+                error "you must see the answer before grading the card"
+            }
+        }
+    }
+
+    set ret [handle_context_independent_key $key]
+    if {$ret ne ""} {
+        return $ret
+    }
+
+    if {$::TEST && $key eq "+"} {
+        test_go_to_next_day
+        return
+    }
+
+    if {$::ANSWER_ALREADY_SEEN} {
+        switch $key {
+            r { return [schedule_card $card_uid 0] }
+            h { return [schedule_card $card_uid 2] }
+            g { return [schedule_card $card_uid 4] }
+            e { return [schedule_card $card_uid 5] }
+        }
+    }
+    error "invalid key: $key (type ? for help)"
+}
+
+proc no_card_prompt {} {
+    set key [get_key ">>"]
+    set ret [handle_context_independent_key $key]
+    if {$ret ne ""} {
+        return $ret
+    }
+
+    error "invalid key: $key (type ? for help)"
+}
+
+proc handle_context_independent_key {key} {
+    switch $key {
         t {
             put_header "Inactive Tags"
             puts [get_inactive_tags]
@@ -516,28 +581,24 @@ proc ask_for_card {card_uid} {
             deselect_tags $line
             return restart
         }
-        N { edit_new_card; return }
-        E { edit_existent_card $card_uid; return }
-        ? { put_help; return }
+        N { edit_new_card; return restart }
         Q { puts ""; return quit }
-        a - h - g - e {
-            if {!$::ANSWER_ALREADY_SEEN} {
-                error "you must see the answer before grading the card"
-            }
-        }
+        ? { put_context_independent_help; return 1 }
     }
-
-    if {$::ANSWER_ALREADY_SEEN} {
-        switch $key {
-            r { return [schedule_card $card_uid 0] }
-            h { return [schedule_card $card_uid 2] }
-            g { return [schedule_card $card_uid 4] }
-            e { return [schedule_card $card_uid 5] }
-        }
-    }
-    error "invalid key"
 }
 
+proc action_with_context {script} {
+    set ret ""
+    try {
+        set ret [db transaction {uplevel $script}]
+    } on error {msg} {
+        with_color red {
+            puts stderr "Error: $msg"
+        }
+    } finally {
+        return $ret
+    }
+}
 
 proc run {} {
     set found_cards 0
@@ -548,7 +609,7 @@ proc run {} {
             set n [llength $cards]
         }
         foreach card $cards {
-            ::term::ansi::send::clear
+            send::clear
             puts "Type ? for help."
             put_info $f $n
             incr n -1
@@ -556,17 +617,11 @@ proc run {} {
             set ::FIRST_ACTION_FOR_CARD 1
             set ::ANSWER_ALREADY_SEEN 0
             while {$ret ne "scheduled"} {
-                if {[catch { set ret [db transaction {ask_for_card $card}] } err_msg]} {
-                    with_color red {
-                        puts stderr "Error: $err_msg"
-                    }
-                }
+                set ret [action_with_context {card_prompt $card}]
                 set ::FIRST_ACTION_FOR_CARD 0
                 switch $ret {
                     quit { quit }
-                    restart {
-                        tailcall run
-                    }
+                    restart { tailcall run }
                 }
             }
         }
@@ -575,15 +630,35 @@ proc run {} {
         tailcall run
     }
     if {$::TEST} {
-        draw_line
-        show_info "... Next Day (testing)"
-        draw_line
-        get_key "(press any key)>>"
-        puts -nonewline "from [clock format $::START_TIME] "
-        set ::START_TIME [clock add $::START_TIME 1 day]
-        puts "to [clock format $::START_TIME]"
-        tailcall run
+        tailcall test_go_to_next_day
+    } else {
+        send::clear
+        puts "Type ? for help."
+        show_info "No cards to review nor new cards"
+        set ret ""
+        while {1} {
+            set ret [action_with_context {no_card_prompt}]
+            switch $ret {
+                quit { quit }
+                restart { tailcall run }
+            }
+        }
     }
+}
+
+proc test_go_to_next_day {} {
+    variable START_TIME
+    draw_line
+    show_info "... Next Day (testing)"
+    draw_line
+    puts -nonewline "from [clock format $START_TIME] "
+    set START_TIME [clock add $START_TIME 1 day]
+    puts "to [clock format $START_TIME]"
+    set key [get_key "(press any key or Q to quit) >>"]
+    if {$key eq "Q"} {
+        quit
+    }
+    tailcall run
 }
 
 proc main {} {
@@ -603,47 +678,8 @@ proc quit {} {
     exit
 }
 
-######################### testing ################ 
-
-proc test {} {
-    create_tag all
-    set i 0
-    while {$i<2} {
-        db transaction {
-            add_fact question$i answer$i notes simple english
-        }
-        incr i
-    }
-    set i 0
-    while {$i < 2} {
-        db transaction {
-            add_fact question$i answer$i notes voc lojban
-        }
-        incr i
-    }
-    #puts [check_database]
-    #dump_database
+if {!([info exists TEST] && $TEST)} {
+    set TEST 0
+    init_globals
     main
-    #set START_TIME [clock add $::START_TIME 1 day]
 }
-
-proc dump_database {} {
-    puts [db eval {SELECT * FROM facts} cards { parray cards }]
-    puts [db eval {SELECT * FROM facts} facts { parray facts }]
-    puts [db eval {SELECT * FROM tags} tags { parray tags }]
-    puts [db eval {SELECT * FROM fact_tags} fact_tags { parray fact_tags }]
-}
-
-proc check_database {} {
-    set ret [db eval {
-        SELECT uid FROM facts
-        WHERE NOT EXISTS(
-            SELECT 1 FROM fact_tags, tags
-            WHERE facts.uid = fact_tags.fact_uid
-            AND fact_tags.tag_uid = tags.uid
-            AND tags.name = 'all')
-    }]
-    return [string equal $ret ""]
-}
-
-test
