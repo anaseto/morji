@@ -539,11 +539,6 @@ proc card_prompt {card_uid} {
         return $ret
     }
 
-    if {$::TEST && $key eq "+"} {
-        test_go_to_next_day
-        return
-    }
-
     if {$::ANSWER_ALREADY_SEEN} {
         switch $key {
             r { return [schedule_card $card_uid 0] }
