@@ -434,13 +434,17 @@ proc edit_card {tmp tmpfile fact_uid} {
     }
 }
 
+proc put_card_fields {ch {question {}} {answer {}} {notes {}} {type {}} {tags {}}} {
+    puts $ch "\\Question: $question"
+    puts $ch "\\Answer: $answer"
+    puts $ch "\\Notes: $notes"
+    puts $ch "\\Type: $type"
+    puts $ch "\\Tags: $tags"
+}
+
 proc edit_new_card {} {
     set tmp [file tempfile tmpfile]
-    puts $tmp "\\Question: "
-    puts $tmp "\\Answer: "
-    puts $tmp "\\Notes: "
-    puts $tmp "\\Type: "
-    puts $tmp "\\Tags: "
+    put_card_fields $tmp
     flush $tmp
     seek $tmp 0
     edit_card $tmp $tmpfile ""
@@ -453,11 +457,7 @@ proc edit_existent_card {card_uid} {
     lassign [get_card_user_info $card_uid] question answer notes type
     set tags [get_card_tags $card_uid]
     set tags [lsearch -inline -all -not -exact $tags all]
-    puts $tmp "\\Question: $question"
-    puts $tmp "\\Answer: $answer"
-    puts $tmp "\\Notes: $notes"
-    puts $tmp "\\Type: $type"
-    puts $tmp "\\Tags: $tags"
+    put_card_fields $tmp $question $answer $notes $type $tags
     flush $tmp
     seek $tmp 0
     db eval {SELECT fact_uid FROM cards WHERE uid=$card_uid} break
