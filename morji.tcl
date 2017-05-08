@@ -534,7 +534,7 @@ proc card_prompt {card_uid} {
         }
     }
 
-    set ret [handle_context_independent_key $key]
+    set ret [handle_base_key $key]
     if {$ret ne ""} {
         return $ret
     }
@@ -552,7 +552,7 @@ proc card_prompt {card_uid} {
 
 proc no_card_prompt {} {
     set key [get_key ">>"]
-    set ret [handle_context_independent_key $key]
+    set ret [handle_base_key $key]
     if {$ret ne ""} {
         return $ret
     }
@@ -560,7 +560,7 @@ proc no_card_prompt {} {
     error "invalid key: $key (type ? for help)"
 }
 
-proc handle_context_independent_key {key} {
+proc handle_base_key {key} {
     switch $key {
         t {
             put_header "Inactive Tags"
@@ -639,21 +639,6 @@ proc run {} {
             }
         }
     }
-}
-
-proc test_go_to_next_day {} {
-    variable START_TIME
-    draw_line
-    show_info "... Next Day (testing)"
-    draw_line
-    puts -nonewline "from [clock format $START_TIME] "
-    set START_TIME [clock add $START_TIME 1 day]
-    puts "to [clock format $START_TIME]"
-    set key [get_key "(press any key or Q to quit) >>"]
-    if {$key eq "Q"} {
-        quit
-    }
-    tailcall run
 }
 
 proc main {} {
