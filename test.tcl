@@ -1,7 +1,12 @@
-proc test_go_to_next_day {} {
+namespace eval morji {
+    variable TEST 1
+}
+source -encoding utf-8 morji.tcl
+
+proc morji::test_go_to_next_day {} {
     variable START_TIME
     draw_line
-    show_info "... Next Day (testing)"
+    put_info "... Next Day (testing)"
     draw_line
     puts -nonewline "from [clock format $START_TIME] "
     set START_TIME [clock add $START_TIME 1 day]
@@ -13,8 +18,8 @@ proc test_go_to_next_day {} {
     tailcall run
 }
 
-proc test {} {
-    init_globals
+proc morji::test {} {
+    init
     set i 0
     db transaction {
         while {$i<2} {
@@ -41,14 +46,14 @@ proc test {} {
     main
 }
 
-proc dump_database {} {
+proc morji::dump_database {} {
     puts [db eval {SELECT * FROM facts} cards { parray cards }]
     puts [db eval {SELECT * FROM facts} facts { parray facts }]
     puts [db eval {SELECT * FROM tags} tags { parray tags }]
     puts [db eval {SELECT * FROM fact_tags} fact_tags { parray fact_tags }]
 }
 
-proc check_database {} {
+proc morji::check_database {} {
     set ret [db eval {
         SELECT uid FROM facts
         WHERE NOT EXISTS(
@@ -60,6 +65,4 @@ proc check_database {} {
     return [string equal $ret ""]
 }
 
-set TEST 1
-source -encoding utf-8 morji.tcl
-test
+morji::test
