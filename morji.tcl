@@ -29,7 +29,7 @@ proc morji::init_state {} {
             last_rep INTEGER,
             -- next repetition time (null for new cards)
             next_rep INTEGER CHECK(next_rep ISNULL OR last_rep < next_rep),
-            easyness REAL NOT NULL DEFAULT 2.5 CHECK(easyness >= 1.3),
+            easyness REAL NOT NULL DEFAULT 2.5 CHECK(easyness > 1.29),
             -- number of repetitions (0 for new and forgotten cards)
             reps INTEGER NOT NULL,
             fact_uid INTEGER NOT NULL REFERENCES facts ON DELETE CASCADE,
@@ -255,43 +255,94 @@ proc morji::deselect_tags {pattern} {
 
 proc morji::schedule_card {uid grade} {
     variable START_TIME
-    db eval {SELECT last_rep, next_rep, easyness, reps FROM cards WHERE uid=$uid} {
-        # only grades 0, 2, 4 and 5 are possible
-        if {(($reps == 0) && ($grade < 2))} {
-            # card was new or forgotten already, so no change
-            break
-        }
-        set easyness [expr {$easyness + (0.1 - (5.0-$grade)*(0.08 + (5.0-$grade)*0.02))}]
-        if {$easyness < 1.3} {
-            set easyness 1.3
-        }
-        if {$grade >= 2} {
-            set new_last_rep $START_TIME
-            set new_next_rep $new_last_rep
-            incr reps
-        } else {
-            set new_last_rep $last_rep
-            set new_next_rep $next_rep
-            set reps 0
-        }
-        # TODO: add some randomness and late revision tweaks
-        switch $reps {
-            0 { }
-            1 { set new_next_rep [clock add $new_next_rep 1 day] }
-            2 { set new_next_rep [clock add $new_next_rep 6 day] }
-            default {
-                set interval [expr {int(($new_last_rep-$last_rep)*$easyness)}]
-                set new_next_rep [clock add $new_next_rep $interval seconds]
+    db eval {SELECT last_rep, next_rep, easyness, reps, fact_uid FROM cards WHERE uid=$uid} break
+    # grades are the same as in anki: again, hard, good, easy
+    if {(($reps == 0) && ($grade eq "again"))} {
+        # card was new or forgotten already, so no change
+        return "scheduled"
+    }
+    if {$next_rep eq "" && $grade eq "hard"} {
+        # NOTE: for unseen card grade "hard" is the same as "good"
+        set grade good
+    }
+    switch $grade {
+        hard { set easyness [expr {$easyness - 0.15}] }
+        easy { set easyness [expr {$easyness + 0.1}] }
+    }
+    if {$easyness < 1.3} {
+        set easyness 1.3
+    }
+    if {$grade ne "again"} {
+        set new_last_rep $START_TIME
+        set new_next_rep $new_last_rep
+        incr reps
+    } else {
+        set new_last_rep $last_rep
+        set new_next_rep $next_rep
+        set reps 0
+    }
+    # TODO: add late revision and sister cards tweaks
+    switch $reps {
+        0 { }
+        1 { 
+            set new_next_rep [clock add $new_next_rep 1 day]
+            switch $grade {
+                easy { 
+                    if {$next_rep ne ""} {
+                        set new_next_rep [clock add $new_next_rep 2 days]
+                    } else {
+                        set new_next_rep [clock add $new_next_rep 5 days]
+                    }
+                }
+                good - hard {
+                    if {rand()*3 > ($grade eq "good" ? 1 : 2)} {
+                        set new_next_rep [clock add $new_next_rep 1 day]
+                    }
+                }
             }
         }
-        db eval {
-            UPDATE cards
-            SET last_rep=$new_last_rep, next_rep=$new_next_rep, easyness=$easyness, reps=$reps
-            WHERE uid=$uid
+        2 { 
+            set new_next_rep [clock add $new_next_rep 6 day]
+            switch $grade {
+                hard { set new_next_rep [clock add $new_next_rep -2 days] }
+                easy { set new_next_rep [clock add $new_next_rep 1 day] }
+            }
         }
-        break
+        default {
+            set interval [expr {int(($new_last_rep-$last_rep)*$easyness)}]
+            set new_next_rep [clock add $new_next_rep $interval seconds]
+        }
+    }
+    if {$reps > 0} {
+        set new_next_rep [
+            clock add $new_next_rep [interval_noise [expr {$new_next_rep-$new_last_rep}]] days
+        ]
+    }
+    db eval {SELECT 1 FROM cards WHERE fact_uid = $fact_uid AND uid != $uid AND next_rep=$new_next_rep} {
+        set new_next_rep [clock add $new_next_rep 1 day]
+    }
+    db eval {
+        UPDATE cards
+        SET last_rep=$new_last_rep, next_rep=$new_next_rep, easyness=$easyness, reps=$reps
+        WHERE uid=$uid
     }
     return "scheduled"
+}
+
+proc morji::interval_noise {interval} {
+    set noise 0
+    set day 86400
+    # use similar noise calculation as mnemosyne
+    if {$interval <= 10 * $day} {
+        set noise [expr {$day * rand() * 2}]
+    } elseif {$interval <= 20 * $day} {
+        set noise [expr {$day * (rand() * 5 - 2)}]
+    } elseif {$interval <= 60 * $day} {
+        set noise [expr {$day * (rand() * 7 - 3)}]
+    } else {
+        set noise [expr {$interval * (-0.5 + 0.1 * rand())}]
+    }
+    return [expr {int($noise / $day)}]
 }
 
 ######################### fact parsing ################ 
@@ -568,10 +619,10 @@ proc morji::card_prompt {card_uid} {
 
     if {$ANSWER_ALREADY_SEEN} {
         switch $key {
-            a { return [schedule_card $card_uid 0] }
-            h { return [schedule_card $card_uid 2] }
-            g { return [schedule_card $card_uid 4] }
-            e { return [schedule_card $card_uid 5] }
+            a { return [schedule_card $card_uid again] }
+            h { return [schedule_card $card_uid hard] }
+            g { return [schedule_card $card_uid good] }
+            e { return [schedule_card $card_uid easy] }
         }
     }
     error "invalid key: $key (type ? for help)"

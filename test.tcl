@@ -37,7 +37,7 @@ proc morji::test {} {
     set i 1
     #db transaction {
         #while {$i < 5000} {
-            #schedule_card $i 4
+            #schedule_card $i good
             #incr i
         #}
     #}
