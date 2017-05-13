@@ -92,6 +92,7 @@ proc morji::add_fact {question answer notes type {tags {}}} {
     foreach uid [lsort -unique $tag_uids] {
         db eval {INSERT INTO fact_tags VALUES($fact_uid, $uid)}
     }
+    return $fact_uid
 }
 
 proc morji::update_fact {fact_uid question answer notes type tags} {
@@ -281,23 +282,15 @@ proc morji::schedule_card {uid grade} {
         set new_next_rep $next_rep
         set reps 0
     }
-    # TODO: add late revision and sister cards tweaks
     switch $reps {
         0 { }
         1 { 
             set new_next_rep [clock add $new_next_rep 1 day]
-            switch $grade {
-                easy { 
-                    if {$next_rep ne ""} {
-                        set new_next_rep [clock add $new_next_rep 2 days]
-                    } else {
-                        set new_next_rep [clock add $new_next_rep 5 days]
-                    }
-                }
-                good - hard {
-                    if {rand()*3 > ($grade eq "good" ? 1 : 2)} {
-                        set new_next_rep [clock add $new_next_rep 1 day]
-                    }
+            if {$grade eq "easy"} {
+                if {$next_rep ne ""} {
+                    set new_next_rep [clock add $new_next_rep 2 days]
+                } else {
+                    set new_next_rep [clock add $new_next_rep 5 days]
                 }
             }
         }
@@ -318,7 +311,8 @@ proc morji::schedule_card {uid grade} {
             clock add $new_next_rep [interval_noise [expr {$new_next_rep-$new_last_rep}]] days
         ]
     }
-    db eval {SELECT 1 FROM cards WHERE fact_uid = $fact_uid AND uid != $uid AND next_rep=$new_next_rep} {
+    if {[db exists {SELECT 1 FROM cards WHERE fact_uid=$fact_uid AND uid!=$uid AND next_rep=$new_next_rep}]} {
+        # avoid putting sister cards on same day
         set new_next_rep [clock add $new_next_rep 1 day]
     }
     db eval {
@@ -417,6 +411,16 @@ proc morji::put_help {} {
     put_context_independent_keys
 }
 
+proc morji::put_help_initial_schedule_prompt {} {
+    put_header "Keys" cyan
+
+    puts {
+  a      grade card as not memorized (again)
+  g      grade card memorization as good
+  e      grade card memorization as easy
+  Q      quit program}
+}
+
 proc morji::put_context_independent_help {} {
     put_context_independent_keys
 }
@@ -475,11 +479,6 @@ proc morji::put_answer {question answer notes type fact_data} {
     }
 }
 
-proc morji::put_screen_start {} {
-    send::clear
-    puts "Type ? for help."
-}
-
 proc morji::put_card_fields {ch {question {}} {answer {}} {notes {}} {type {}} {tags {}}} {
     puts $ch "\\Question: $question"
     puts $ch "\\Answer: $answer"
@@ -534,12 +533,40 @@ proc morji::edit_card {tmp tmpfile fact_uid} {
     if {$fact_uid ne ""} {
         update_fact $fact_uid $question $answer $notes $type $tags
     } else {
-        add_fact $question $answer $notes $type $tags
+        set fact_uid [add_fact $question $answer $notes $type $tags]
+        set ret ""
+        while {$ret ne "scheduled"} {
+            set ret [ask_for_initial_grade $fact_uid]
+        }
     }
     lassign [get_fact_user_info $fact_uid] question answer notes type
     foreach {f t} [list $question Question $answer Answer $notes Notes $type Type $tags Tags] {
         put_header "$t"
         puts $f
+    }
+}
+
+proc morji::ask_for_initial_grade {fact_uid} {
+    set uids [db eval {SELECT uid FROM cards WHERE fact_uid=$fact_uid}]
+    set key [get_key "(initial grade) >>"]
+    switch $key {
+        a { return "scheduled" }
+        g { 
+            foreach card_uid $uids {schedule_card $card_uid good}
+            return "scheduled"
+        }
+        e { 
+            foreach card_uid $uids {schedule_card $card_uid easy}
+            return "scheduled"
+        }
+        ? {
+            put_help_initial_schedule_prompt
+            return ""
+        }
+        Q { quit }
+    }
+    with_color red {
+        puts stderr "Error: invalid key: $key (type ? for help)"
     }
 }
 
@@ -563,16 +590,6 @@ proc morji::with_color {color script} {
         send::sda_fgdefault
     }
 }
-
-proc morji::put_phase_info {phase n} {
-    switch $phase {
-        get_today_cards { put_info "Review $n memorized cards." }
-        get_forgotten_cards { put_info "Review $n forgotten cards." }
-        get_new_cards { put_info "Memorize $n new cards." }
-    }
-}
-
-######################### main loop stuff ################
 
 proc morji::prompt_delete_card {uid} {
     set key [get_key {Delete card? [Y/n] >>}]
@@ -658,6 +675,21 @@ proc morji::handle_base_key {key} {
         Q { puts ""; return quit }
         ? { put_context_independent_help; return 1 }
     }
+}
+
+######################### main loop stuff ################
+
+proc morji::put_phase_info {phase n} {
+    switch $phase {
+        get_today_cards { put_info "Review $n memorized cards." }
+        get_forgotten_cards { put_info "Review $n forgotten cards." }
+        get_new_cards { put_info "Memorize $n new cards." }
+    }
+}
+
+proc morji::put_screen_start {} {
+    send::clear
+    puts "Type ? for help."
 }
 
 proc morji::action_with_context {script} {
