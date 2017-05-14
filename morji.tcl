@@ -16,7 +16,7 @@ namespace eval morji {
     }
 
     variables START_TIME FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN TEST
-    namespace eval config {}
+    namespace eval markup {}
 }
 
 
@@ -455,7 +455,7 @@ proc morji::put_text {text} {
             set cmd [string range $elt 1 end-1]
             set cmdname [lindex $cmd 0]
             set args [lrange $cmd 1 end]
-            morji::config::$cmdname {*}$args
+            morji::markup::$cmdname {*}$args
         } else {
             puts -nonewline $elt
         }
@@ -463,10 +463,14 @@ proc morji::put_text {text} {
     puts ""
 }
 
-proc morji::config::em {args} {
+proc morji::markup::em {args} {
     morji::with_color red {
         puts -nonewline [join $args]
     }
+}
+
+foreach {n s} {lbracket \[ rbracket \]} {
+    proc morji::markup::$n {} [list puts -nonewline $s]
 }
 
 proc morji::put_question {question answer type fact_data} {
@@ -622,6 +626,15 @@ proc morji::with_color {color script} {
         uplevel $script
     } finally {
         send::sda_fgdefault
+    }
+}
+
+proc morji::with_style {style script} {
+    send::sda_$style
+    try { 
+        uplevel $script
+    } finally {
+        send::sda_no$style
     }
 }
 

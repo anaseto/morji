@@ -23,7 +23,7 @@ proc morji::test {} {
     set i 0
     db transaction {
         while {$i < 2} {
-            add_fact "What is the n°\[em $i\] answer" "The answer n°\[em $i\]" notes simple english
+            add_fact "What is the \[lbracket\]important\[rbracket\] n°\[em $i\] answer?" "The answer n°\[em $i\]" notes simple english
             incr i
         }
     }
