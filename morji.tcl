@@ -3,6 +3,8 @@ package require term::ansi::ctrl::unix
 package require term::ansi::send
 package require textutil
 
+# TODO: backups, tests, recuperar db mnemosyne, cloze deletion,
+
 ######################### namespace state ################ 
 
 namespace eval morji {
@@ -15,6 +17,8 @@ namespace eval morji {
 
     variables START_TIME FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN TEST
 }
+
+namespace eval morjiconfig {}
 
 proc morji::init_state {} {
     variables START_TIME FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN
@@ -114,6 +118,7 @@ proc morji::update_fact {fact_uid question answer notes type tags} {
 }
 
 proc morji::update_tags_for_fact {fact_uid tags} {
+    # TODO: remove tags with no cards
     set otags [db eval {
         SELECT name FROM tags
         WHERE EXISTS(SELECT 1 FROM fact_tags WHERE fact_uid=$fact_uid AND tag_uid = tags.uid)
@@ -199,6 +204,7 @@ proc morji::get_forgotten_cards {} {
 }
 
 proc morji::get_new_cards {} {
+    # TODO: avoid sister cards at the same time?
     return [db eval [string cat {
         SELECT cards.uid FROM cards
         WHERE cards.next_rep ISNULL AND
@@ -326,7 +332,7 @@ proc morji::schedule_card {uid grade} {
 proc morji::interval_noise {interval} {
     set noise 0
     set day 86400
-    # use similar noise calculation as mnemosyne
+    # use noise calculation similar to mnemosyne's
     if {$interval <= 10 * $day} {
         set noise [expr {$day * rand() * 2}]
     } elseif {$interval <= 20 * $day} {
@@ -442,15 +448,36 @@ proc morji::put_header {title {color yellow}} {
     }
 }
 
+proc morji::put_text {text} {
+    set elts [textutil::splitx $text {(\[[^\]]*\])}]
+    foreach elt $elts {
+        if {[regexp {^\[.*\]$} $elt]} {
+            set cmd [string range $elt 1 end-1]
+            set cmdname [lindex $cmd 0]
+            set args [lrange $cmd 1 end]
+            morjiconfig::$cmdname {*}$args
+        } else {
+            puts -nonewline $elt
+        }
+    }
+    puts ""
+}
+
+proc morjiconfig::em {args} {
+    morji::with_color red {
+        puts -nonewline [join $args]
+    }
+}
+
 proc morji::put_question {question answer type fact_data} {
     put_header "Question"
     switch $type {
-        simple { puts $question }
+        simple { put_text $question }
         voc {
             if {$fact_data eq "R"} {
-                puts $question
+                put_text $question
             } else {
-                puts $answer
+                put_text $answer
             }
         }
     }
@@ -464,18 +491,18 @@ proc morji::put_tags {type tags} {
 proc morji::put_answer {question answer notes type fact_data} {
     put_header "Answer"
     switch $type {
-        simple { puts $answer }
+        simple { put_text $answer }
         voc {
             if {$fact_data eq "R"} {
-                puts $answer
+                put_text $answer
             } else {
-                puts $question
+                put_text $question
             }
         }
     }
     if {[regexp {\S} $notes]} {
         put_header "Notes"
-        puts $notes
+        put_text $notes
     }
 }
 
@@ -542,7 +569,14 @@ proc morji::edit_card {tmp tmpfile fact_uid} {
     lassign [get_fact_user_info $fact_uid] question answer notes type
     foreach {f t} [list $question Question $answer Answer $notes Notes $type Type $tags Tags] {
         put_header "$t"
-        puts $f
+        switch $t {
+            Question - Answer - Notes {
+                put_text $f
+            }
+            default {
+                puts $f
+            }
+        }
     }
 }
 

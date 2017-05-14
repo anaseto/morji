@@ -22,15 +22,15 @@ proc morji::test {} {
     init
     set i 0
     db transaction {
-        while {$i<2} {
-            add_fact question$i answer$i notes simple english
+        while {$i < 2} {
+            add_fact "What is the n°\[em $i\] answer" "The answer n°\[em $i\]" notes simple english
             incr i
         }
     }
     set i 0
     db transaction {
         while {$i < 2} {
-            add_fact question$i answer$i notes voc lojban
+            add_fact "hitz \[em $i\]" "vorto \[em $i\]" notes voc lojban
             incr i
         }
     }
