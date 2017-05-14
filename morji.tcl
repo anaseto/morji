@@ -152,16 +152,6 @@ proc morji::update_tags_for_fact {fact_uid tags} {
     }
 }
 
-proc morji::delete_tag {tag} {
-    # XXX: unused
-    db eval {DELETE FROM tags WHERE name=$tag}
-}
-
-proc morji::delete_fact {uid} {
-    # XXX: unused
-    db eval {DELETE FROM facts WHERE uid=$uid}
-}
-
 ######################### getting cards and fact data ################ 
 
 proc morji::start_of_day {} {
@@ -424,6 +414,7 @@ proc morji::put_help_initial_schedule_prompt {} {
   a      grade card as not memorized (again)
   g      grade card memorization as good
   e      grade card memorization as easy
+  E      edit new card
   Q      quit program}
 }
 
@@ -455,7 +446,13 @@ proc morji::put_text {text} {
             set cmd [string range $elt 1 end-1]
             set cmdname [lindex $cmd 0]
             set args [lrange $cmd 1 end]
-            morji::markup::$cmdname {*}$args
+            try {
+                morji::markup::$cmdname {*}$args
+            } on error {msg} {
+                with_color red {
+                    puts -nonewline \[$msg\]
+                }
+            }
         } else {
             puts -nonewline $elt
         }
@@ -534,7 +531,7 @@ proc morji::edit_new_card {} {
         put_card_fields $tmp
         flush $tmp
         seek $tmp 0
-        edit_card $tmp $tmpfile ""
+        edit_card $tmp $tmpfile
     }
 }
 
@@ -551,7 +548,7 @@ proc morji::edit_existent_card {card_uid} {
     }
 }
 
-proc morji::edit_card {tmp tmpfile fact_uid} {
+proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
     set editor $::env(EDITOR)
     if {$editor eq ""} {
         set editor vim
@@ -563,23 +560,29 @@ proc morji::edit_card {tmp tmpfile fact_uid} {
     set tags [lsort -unique $tags]
     if {$fact_uid ne ""} {
         update_fact $fact_uid $question $answer $notes $type $tags
+        show_fact $fact_uid $tags
     } else {
         set fact_uid [add_fact $question $answer $notes $type $tags]
+        show_fact $fact_uid tags
         set ret ""
         while {$ret ne "scheduled"} {
             set ret [ask_for_initial_grade $fact_uid]
+            if {$ret eq "edit"} {
+                seek $tmp 0
+                db eval {DELETE FROM facts WHERE uid=$fact_uid}
+                tailcall edit_card $tmp $tmpfile
+            }
         }
     }
+}
+
+proc morji::show_fact {fact_uid tags} {
     lassign [get_fact_user_info $fact_uid] question answer notes type
     foreach {f t} [list $question Question $answer Answer $notes Notes $type Type $tags Tags] {
         put_header "$t"
         switch $t {
-            Question - Answer - Notes {
-                put_text $f
-            }
-            default {
-                puts $f
-            }
+            Question - Answer - Notes { put_text $f }
+            default { puts $f }
         }
     }
 }
@@ -597,6 +600,7 @@ proc morji::ask_for_initial_grade {fact_uid} {
             foreach card_uid $uids {schedule_card $card_uid easy}
             return "scheduled"
         }
+        E { return "edit" }
         ? {
             put_help_initial_schedule_prompt
             return ""
