@@ -461,7 +461,7 @@ proc morji::put_text {text} {
 }
 
 proc morji::markup::em {args} {
-    morji::with_color red {
+    morji::with_style bold {
         puts -nonewline [join $args]
     }
 }
@@ -555,12 +555,21 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
     }
     exec $editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
     lassign [parse_card [read $tmp]] question answer notes type tags
+    if {$question eq ""} {
+        warn "Question field is empty"
+    }
+    if {$answer eq ""} {
+        warn "Answer field is empty"
+    }
     set tags [textutil::splitx $tags]
     set tags [lsearch -inline -all -not -exact $tags all]
     set tags [lsort -unique $tags]
     if {$fact_uid ne ""} {
         update_fact $fact_uid $question $answer $notes $type $tags
         show_fact $fact_uid $tags
+        if {![prompt_confirmation {Ok}]} {
+            throw CANCEL {}
+        }
     } else {
         set fact_uid [add_fact $question $answer $notes $type $tags]
         show_fact $fact_uid tags
@@ -643,10 +652,28 @@ proc morji::with_style {style script} {
 }
 
 proc morji::prompt_delete_card {uid} {
-    set key [get_key {Delete card? [Y/n] >>}]
-    if {$key eq "Y"} {
+    if {[prompt_confirmation {Delete card}]} {
         db eval {DELETE FROM cards WHERE uid=$uid}
         return restart
+    }
+}
+
+proc morji::prompt_confirmation {prompt} {
+    while {1} {
+        set key [get_key "$prompt? \[Y/n\] >>"]
+        switch $key {
+            Y { return 1 }
+            n { return 0 }
+            ? { 
+                put_header "Keys" cyan
+                puts {Type “Y” to confirm, or “n” to cancel.}
+            }
+            default {
+                with_color red {
+                    puts stderr "Error: invalid key: $key (type ? for help)"
+                }
+            }
+        }
     }
 }
 
@@ -747,6 +774,10 @@ proc morji::action_with_context {script} {
     set ret ""
     try {
         set ret [db transaction {uplevel $script}]
+    } trap {CANCEL} {msg} {
+        if {$msg ne ""} {
+            put_info $msg
+        }
     } on error {msg} {
         with_color red {
             puts stderr "Error: $msg"
