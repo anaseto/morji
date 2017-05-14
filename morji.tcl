@@ -344,13 +344,13 @@ proc morji::check_field {field_contents field} {
 }
 
 proc morji::parse_card {text} {
-    set fields [textutil::splitx $text {(\\(?:Question|Answer|Notes|Type|Tags):)}]
+    set fields [textutil::splitx $text {(@(?:Question|Answer|Notes|Type|Tags):)}]
     set field_contents [dict create]
     set current_field ""
-    foreach f {{\Question:} {\Answer:} {\Notes:} {\Type:} {\Tags:}} { dict set field_contents $f "" }
+    foreach f {{@Question:} {@Answer:} {@Notes:} {@Type:} {@Tags:}} { dict set field_contents $f "" }
     foreach field $fields {
         switch $field {
-            {\Question:} - {\Answer:} - {\Notes:} - {\Type:} - {\Tags:} {
+            {@Question:} - {@Answer:} - {@Notes:} - {@Type:} - {@Tags:} {
                 check_field $field_contents $field
                 set current_field $field
             }
@@ -508,11 +508,11 @@ proc morji::put_answer {question answer notes type fact_data} {
 }
 
 proc morji::put_card_fields {ch {question {}} {answer {}} {notes {}} {type {}} {tags {}}} {
-    puts $ch "\\Question: $question"
-    puts $ch "\\Answer: $answer"
-    puts $ch "\\Notes: $notes"
-    puts $ch "\\Type: $type"
-    puts $ch "\\Tags: $tags"
+    puts $ch "@Question: $question"
+    puts $ch "@Answer: $answer"
+    puts $ch "@Notes: $notes"
+    puts $ch "@Type: $type"
+    puts $ch "@Tags: $tags"
 }
 
 proc morji::with_tempfile {tmp tmpfile script} {
