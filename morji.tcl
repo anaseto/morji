@@ -16,9 +16,9 @@ namespace eval morji {
     }
 
     variables START_TIME FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN TEST
+    namespace eval config {}
 }
 
-namespace eval morjiconfig {}
 
 proc morji::init_state {} {
     variables START_TIME FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN
@@ -455,7 +455,7 @@ proc morji::put_text {text} {
             set cmd [string range $elt 1 end-1]
             set cmdname [lindex $cmd 0]
             set args [lrange $cmd 1 end]
-            morjiconfig::$cmdname {*}$args
+            morji::config::$cmdname {*}$args
         } else {
             puts -nonewline $elt
         }
@@ -463,7 +463,7 @@ proc morji::put_text {text} {
     puts ""
 }
 
-proc morjiconfig::em {args} {
+proc morji::config::em {args} {
     morji::with_color red {
         puts -nonewline [join $args]
     }
