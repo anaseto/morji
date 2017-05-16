@@ -118,7 +118,6 @@ proc morji::update_fact {fact_uid question answer notes type tags} {
 }
 
 proc morji::update_tags_for_fact {fact_uid tags} {
-    # TODO: remove tags with no cards
     set otags [db eval {
         SELECT name FROM tags
         WHERE EXISTS(SELECT 1 FROM fact_tags WHERE fact_uid=$fact_uid AND tag_uid = tags.uid)
@@ -149,6 +148,11 @@ proc morji::update_tags_for_fact {fact_uid tags} {
             }
             db eval {DELETE FROM fact_tags WHERE fact_uid=$fact_uid AND tag_uid=$uid}
         }
+    }
+    # remove tags with no facts
+    db eval {
+        DELETE FROM tags
+        WHERE NOT EXISTS(SELECT 1 FROM fact_tags WHERE fact_tags.tag_uid = tags.uid)
     }
 }
 
@@ -189,16 +193,16 @@ proc morji::get_forgotten_cards {} {
         AND reps = 0 AND
     } [get_cards_where_clause] {
         ORDER BY next_rep - last_rep
-        LIMIT 15
+        LIMIT 25
     }]]
 }
 
 proc morji::get_new_cards {} {
-    # TODO: avoid sister cards at the same time?
     return [db eval [string cat {
-        SELECT cards.uid FROM cards
+        SELECT min(cards.uid) FROM cards
         WHERE cards.next_rep ISNULL AND
     } [get_cards_where_clause] {
+        GROUP BY fact_uid
         LIMIT 5
     }]]
 }
@@ -307,8 +311,8 @@ proc morji::schedule_card {uid grade} {
             clock add $new_next_rep [interval_noise [expr {$new_next_rep-$new_last_rep}]] days
         ]
     }
-    if {[db exists {SELECT 1 FROM cards WHERE fact_uid=$fact_uid AND uid!=$uid AND next_rep=$new_next_rep}]} {
-        # avoid putting sister cards on same day
+    while {[db exists {SELECT 1 FROM cards WHERE fact_uid=$fact_uid AND uid!=$uid AND next_rep=$new_next_rep}]} {
+        # avoid putting sister cards on the same day
         set new_next_rep [clock add $new_next_rep 1 day]
     }
     db eval {
