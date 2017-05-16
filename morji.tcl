@@ -75,13 +75,38 @@ proc morji::add_fact {question answer notes type {tags {}}} {
     set fact_uid [db last_insert_rowid]
     switch $type {
         "simple" {
-            db eval {INSERT INTO cards(reps, fact_uid, fact_data)
-                 VALUES(0, $fact_uid, "")}
+            db eval {
+                INSERT INTO cards(reps, fact_uid, fact_data)
+                VALUES(0, $fact_uid, "")
+            }
         }
         "voc" {
             foreach fact_data {R P} {
-                db eval {INSERT INTO cards(reps, fact_uid, fact_data)
-                     VALUES(0, $fact_uid, $fact_data)}
+                db eval {
+                    INSERT INTO cards(reps, fact_uid, fact_data)
+                    VALUES(0, $fact_uid, $fact_data)
+                }
+            }
+        }
+        "cloze" {
+            if {$answer ne ""} {
+                warn "The Answer field is not used for cards of type “cloze”."
+            }
+            set i 0
+            foreach elt [regexp -inline -all {\[cloze [^\]]*\]} $elt] {
+                set cmd [string range $elt 1 end-1]
+                if {[llength $cmd] > 3} {
+                    warn "More than two arguments in cloze command"
+                }
+                if {[llength $cmd] < 3} {
+                    error "Two arguments required in cloze command"
+                }
+                set fact_data [list $i {*}[lrange $cmd 1 2]]
+                db eval {
+                    INSERT INTO cards(reps, fact_uid, fact_data)
+                    VALUES(0, $fact_uid, $fact_data)
+                }
+                incr i
             }
         }
         default {
@@ -149,11 +174,19 @@ proc morji::update_tags_for_fact {fact_uid tags} {
             db eval {DELETE FROM fact_tags WHERE fact_uid=$fact_uid AND tag_uid=$uid}
         }
     }
-    # remove tags with no facts
+    remove_orphaned_tags
+}
+
+proc morji::remove_orphaned_tags {} {
     db eval {
         DELETE FROM tags
         WHERE NOT EXISTS(SELECT 1 FROM fact_tags WHERE fact_tags.tag_uid = tags.uid)
     }
+}
+
+proc morji::delete_fact {fact_uid} {
+    db eval {DELETE FROM facts WHERE uid=$fact_uid}
+    remove_orphaned_tags
 }
 
 ######################### getting cards and fact data ################ 
@@ -486,6 +519,7 @@ proc morji::put_question {question answer type fact_data} {
             }
         }
     }
+    # TODO: cloze
 }
 
 proc morji::put_tags {type tags} {
@@ -505,6 +539,7 @@ proc morji::put_answer {question answer notes type fact_data} {
             }
         }
     }
+    # TODO: cloze
     if {[regexp {\S} $notes]} {
         put_header "Notes"
         put_text $notes
@@ -582,7 +617,7 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
             set ret [ask_for_initial_grade $fact_uid]
             if {$ret eq "edit"} {
                 seek $tmp 0
-                db eval {DELETE FROM facts WHERE uid=$fact_uid}
+                delete_fact $fact_uid
                 tailcall edit_card $tmp $tmpfile
             }
         }
@@ -657,7 +692,8 @@ proc morji::with_style {style script} {
 
 proc morji::prompt_delete_card {uid} {
     if {[prompt_confirmation {Delete card}]} {
-        db eval {DELETE FROM cards WHERE uid=$uid}
+        db eval {SELECT fact_uid FROM cards WHERE uid=$uid} break
+        delete_fact $fact_uid
         return restart
     }
 }
