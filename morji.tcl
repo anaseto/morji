@@ -16,7 +16,10 @@ namespace eval morji {
     }
 
     variables START_TIME FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN TEST
-    namespace eval markup {}
+    namespace eval markup {
+        # index of current card's cloze
+        variable CLOZE 0
+    }
 }
 
 
@@ -93,15 +96,10 @@ proc morji::add_fact {question answer notes type {tags {}}} {
                 warn "The Answer field is not used for cards of type “cloze”."
             }
             set i 0
-            foreach elt [regexp -inline -all {\[cloze [^\]]*\]} $elt] {
+            foreach elt [get_clozes $question] {
                 set cmd [string range $elt 1 end-1]
-                if {[llength $cmd] > 3} {
-                    warn "More than two arguments in cloze command"
-                }
-                if {[llength $cmd] < 3} {
-                    error "Two arguments required in cloze command"
-                }
-                set fact_data [list $i {*}[lrange $cmd 1 2]]
+                check_cloze_cmd $cmd
+                set fact_data [list $i {*}[lrange $cmd 1 end]]
                 db eval {
                     INSERT INTO cards(reps, fact_uid, fact_data)
                     VALUES(0, $fact_uid, $fact_data)
@@ -129,9 +127,11 @@ proc morji::update_fact {fact_uid question answer notes type tags} {
     db eval {UPDATE facts SET question=$question, answer=$answer, notes=$notes WHERE uid=$fact_uid}
     if {($otype eq "simple") && ($type eq "voc")} {
         db eval {UPDATE cards SET fact_data = 'R' WHERE fact_uid = $fact_uid}
+        db eval {UPDATE facts SET type=$type WHERE uid=$fact_uid}
         db eval {INSERT INTO cards(reps, fact_uid, fact_data) VALUES(0, $fact_uid, 'P')}
     } elseif {($otype eq "voc") && ($type eq "simple")} {
         db eval {DELETE FROM cards WHERE fact_uid=$fact_uid AND fact_data = 'P'}
+        db eval {UPDATE facts SET type=$type WHERE uid=$fact_uid}
         db eval {UPDATE cards SET fact_data = '' WHERE fact_uid=$fact_uid}
     } elseif {($type ne $otype)} {
         warn "card of type $otype cannot become of type $type"
@@ -140,6 +140,58 @@ proc morji::update_fact {fact_uid question answer notes type tags} {
         warn "invalid type: $type"
     }
     update_tags_for_fact $fact_uid $tags
+}
+
+proc morji::update_cloze_fact {fact_uid question} {
+    set ocards [db eval {SELECT uid, fact_data FROM cards WHERE cards.fact_uid=$facts_uid}]
+    set nclozes {}
+    set i 0
+    foreach elt [get_clozes $question] {
+        set cmd [string range $elt 1 end-1]
+        check_cloze_cmd $cmd
+        lappend nclozes [list $i {*}[lrange $cmd 1 end]]
+        incr i
+    }
+    if {[llength $ocards] == 2 * [llength $nclozes]} {
+        foreach {uid ocloze} $ocards {
+            set ncloze [lindex $nclozes [lindex $ocloze 1]]
+            db eval {UPDATE cards SET fact_data=$ncloze WHERE uid=$uid}
+        }
+        return
+    }
+    set nclozes_first [lmap cloze $nclozes {lindex $cloze 1}]
+    set oclozes_first [lmap {uid cloze} $ocards {lindex $cloze 1}]
+    foreach {uid ocloze} $ocards {
+        set found [lsearch -exact [lindex $ocloze 1] $nclozes_first]
+        if {$found > -1} {
+            set ncloze [lindex $nclozes [lindex $ocloze 1]]
+            db eval {UPDATE cards SET fact_data=$ncloze WHERE uid=$uid}
+        } else {
+            db eval {DELETE FROM cards WHERE uid=$uid}
+        }
+    }
+    foreach ncloze $nclozes {
+        set found [lsearch -exact [lindex $ncloze 1] $oclozes_first]
+        if {$found == -1} {
+            db eval {
+                INSERT INTO cards(reps, fact_uid, fact_data)
+                VALUES(0, $fact_uid, $ncloze)
+            }
+        }
+    }
+}
+
+proc get_clozes {question} {
+    return [regexp -inline -all {\[cloze [^\]]*\]} $question]
+}
+
+proc check_cloze_cmd {cmd} {
+    if {[llength $cmd] > 3} {
+        warn "More than two arguments in cloze command: \[$cmd\]"
+    }
+    if {[llength $cmd] < 2} {
+        warn "At least one argument required in cloze command: \[$cmd\]"
+    }
 }
 
 proc morji::update_tags_for_fact {fact_uid tags} {
@@ -503,6 +555,21 @@ proc morji::markup::em {args} {
     }
 }
 
+proc morji::markup::cloze {cloze {hint {[…]}}} {
+    if {$morji::markup::CLOZE == 0} {
+        morji::with_style bold {
+            puts -nonewline $hint
+        }
+    } elseif {$morji::markup::CLOZE <= 42} {
+        morji::with_style bold {
+            puts -nonewline "\[$cloze|$hint\]"
+        }
+    } else {
+        puts -nonewline $cloze
+    }
+    incr morji::markup::CLOZE -1
+}
+
 foreach {n s} {lbracket \[ rbracket \]} {
     proc morji::markup::$n {} [list puts -nonewline $s]
 }
@@ -518,8 +585,12 @@ proc morji::put_question {question answer type fact_data} {
                 put_text $answer
             }
         }
+        cloze {
+            lassign $fact_data i
+            set morji::markup::CLOZE $i
+            put_text $question
+        }
     }
-    # TODO: cloze
 }
 
 proc morji::put_tags {type tags} {
@@ -538,8 +609,11 @@ proc morji::put_answer {question answer notes type fact_data} {
                 put_text $question
             }
         }
+        cloze {
+            set cloze [lindex $fact_data 1]
+            puts $cloze
+        }
     }
-    # TODO: cloze
     if {[regexp {\S} $notes]} {
         put_header "Notes"
         put_text $notes
@@ -597,7 +671,7 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
     if {$question eq ""} {
         warn "Question field is empty"
     }
-    if {$answer eq ""} {
+    if {$answer eq "" && $type ne "cloze"} {
         warn "Answer field is empty"
     }
     set tags [textutil::splitx $tags]
@@ -627,6 +701,12 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
 proc morji::show_fact {fact_uid tags} {
     lassign [get_fact_user_info $fact_uid] question answer notes type
     foreach {f t} [list $question Question $answer Answer $notes Notes $type Type $tags Tags] {
+        if {$type eq "cloze" && $t eq "Answer"} {
+            continue
+        }
+        if {$type eq "cloze" && $t eq "Question"} {
+            set morji::markup::CLOZE -42
+        }
         put_header "$t"
         switch $t {
             Question - Answer - Notes { put_text $f }
