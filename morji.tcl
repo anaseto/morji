@@ -488,7 +488,6 @@ proc morji::draw_line {} {
 
 proc morji::put_help {} {
     put_header "Keys (on current card)" cyan
-
     puts {
   q      show current card question again
   space  show current card answer
@@ -503,7 +502,6 @@ proc morji::put_help {} {
 
 proc morji::put_help_initial_schedule_prompt {} {
     put_header "Keys" cyan
-
     puts {
   a      grade card as not memorized (again)
   g      grade card memorization as good
@@ -523,6 +521,7 @@ proc morji::put_context_independent_keys {} {
   N      new card
   t      select tags with glob pattern
   T      deselect tags with glob pattern
+  s      show cards scheduled in the next week
   S      show statistics
   Q      quit program}
 }
@@ -865,6 +864,7 @@ proc morji::no_card_prompt {} {
 }
 
 proc morji::handle_base_key {key} {
+    variable TEST
     switch $key {
         t {
             put_header "Inactive Tags"
@@ -880,8 +880,10 @@ proc morji::handle_base_key {key} {
             deselect_tags $line
             return restart
         }
+        + { if {$TEST} { return next_day } }
         N { edit_new_card; return restart }
-        S { statistics; return 1 }
+        S { show_statistics; return 1 }
+        s { show_cards_scheduled_next_week; return 1 }
         Q { puts ""; return quit }
         ? { put_context_independent_help; return 1 }
     }
@@ -892,19 +894,7 @@ proc morji::put_stats {key value} {
     puts $value
 }
 
-proc morji::statistics {} {
-    set unseen [db eval [substcmd {
-        SELECT count(*) FROM cards WHERE next_rep ISNULL AND [get_cards_where_tag_clause]
-    }]]
-    put_stats "Unseen cards" $unseen
-    set not_memorized [db eval [substcmd {
-        SELECT count(*) FROM cards WHERE reps = 0 AND [get_cards_where_tag_clause]
-    }]]
-    put_stats "Cards not memorized" $not_memorized
-    set memorized [db eval [substcmd {
-        SELECT count(*) FROM cards WHERE reps > 0 AND [get_cards_where_tag_clause]
-    }]]
-    put_stats "Memorized cards" $memorized
+proc morji::show_cards_scheduled_next_week {} {
     set i 0
     set counts {}
     set after [clock add [start_of_day] 1 day]
@@ -922,6 +912,21 @@ proc morji::statistics {} {
         incr i
     }
     put_stats "Cards scheduled for next days" $counts
+}
+
+proc morji::show_statistics {} {
+    set unseen [db eval [substcmd {
+        SELECT count(*) FROM cards WHERE next_rep ISNULL AND [get_cards_where_tag_clause]
+    }]]
+    put_stats "Unseen cards" $unseen
+    set not_memorized [db eval [substcmd {
+        SELECT count(*) FROM cards WHERE reps = 0 AND [get_cards_where_tag_clause]
+    }]]
+    put_stats "Cards not memorized" $not_memorized
+    set memorized [db eval [substcmd {
+        SELECT count(*) FROM cards WHERE reps > 0 AND [get_cards_where_tag_clause]
+    }]]
+    put_stats "Memorized cards" $memorized
 }
 
 ######################### main loop stuff ################
@@ -978,6 +983,7 @@ proc morji::run {} {
                 switch $ret {
                     quit { quit }
                     restart { tailcall run }
+                    next_day { tailcall test_go_to_next_day }
                 }
             }
         }
