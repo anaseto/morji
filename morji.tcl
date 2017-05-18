@@ -3,7 +3,7 @@ package require term::ansi::ctrl::unix
 package require term::ansi::send
 package require textutil
 
-# TODO: backups, tests, recuperar db mnemosyne, cloze deletion,
+# TODO: backups, tests, recuperar db mnemosyne
 
 ######################### namespace state ################ 
 
@@ -23,9 +23,9 @@ namespace eval morji {
 }
 
 
-proc morji::init_state {} {
+proc morji::init_state {{dbfile :memory:}} {
     variables START_TIME FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN
-    sqlite3 db :memory:
+    sqlite3 db $dbfile
     #sqlite3 db /tmp/morji_test.db
 
     db eval {
@@ -77,13 +77,13 @@ proc morji::add_fact {question answer notes type {tags {}}} {
     db eval {INSERT INTO facts(question, answer, notes, type) VALUES($question, $answer, $notes, $type)}
     set fact_uid [db last_insert_rowid]
     switch $type {
-        "simple" {
+        simple {
             db eval {
                 INSERT INTO cards(reps, fact_uid, fact_data)
                 VALUES(0, $fact_uid, "")
             }
         }
-        "voc" {
+        voc {
             foreach fact_data {R P} {
                 db eval {
                     INSERT INTO cards(reps, fact_uid, fact_data)
@@ -91,7 +91,7 @@ proc morji::add_fact {question answer notes type {tags {}}} {
                 }
             }
         }
-        "cloze" {
+        cloze {
             if {$answer ne ""} {
                 warn "The Answer field is not used for cards of type “cloze”."
             }
@@ -143,7 +143,7 @@ proc morji::update_fact {fact_uid question answer notes type tags} {
 }
 
 proc morji::update_cloze_fact {fact_uid question} {
-    set ocards [db eval {SELECT uid, fact_data FROM cards WHERE cards.fact_uid=$facts_uid}]
+    set ocards [db eval {SELECT uid, fact_data FROM cards WHERE cards.fact_uid=$fact_uid}]
     set nclozes {}
     set i 0
     foreach elt [get_clozes $question] {
@@ -154,22 +154,22 @@ proc morji::update_cloze_fact {fact_uid question} {
     }
     if {[llength $ocards] == 2 * [llength $nclozes]} {
         foreach {uid ocloze} $ocards {
-            set ncloze [lindex $nclozes [lindex $ocloze 1]]
+            set ncloze [lindex $nclozes [lindex $ocloze 0]]
             db eval {UPDATE cards SET fact_data=$ncloze WHERE uid=$uid}
         }
         return
     }
     set nclozes_first [lmap cloze $nclozes {lindex $cloze 1}]
-    set oclozes_first [lmap {uid cloze} $ocards {lindex $cloze 1}]
     foreach {uid ocloze} $ocards {
         set found [lsearch -exact [lindex $ocloze 1] $nclozes_first]
         if {$found > -1} {
-            set ncloze [lindex $nclozes [lindex $ocloze 1]]
+            set ncloze [lindex $nclozes [lindex $ocloze 0]]
             db eval {UPDATE cards SET fact_data=$ncloze WHERE uid=$uid}
         } else {
             db eval {DELETE FROM cards WHERE uid=$uid}
         }
     }
+    set oclozes_first [lmap {uid cloze} $ocards {lindex $cloze 1}]
     foreach ncloze $nclozes {
         set found [lsearch -exact [lindex $ncloze 1] $oclozes_first]
         if {$found == -1} {
@@ -249,7 +249,11 @@ proc morji::start_of_day {} {
     return [clock add [clock scan [clock format $START_TIME -format $fmt] -format $fmt] 2 hours]
 }
 
-proc morji::get_cards_where_clause {} {
+proc morji::substcmd {text} {
+    return [subst -nobackslashes -novariables $text]
+}
+
+proc morji::get_cards_where_tag_clause {} {
     return {
         EXISTS(SELECT 1 FROM tags, fact_tags, facts
             WHERE cards.fact_uid = facts.uid
@@ -261,32 +265,32 @@ proc morji::get_cards_where_clause {} {
 
 proc morji::get_today_cards {} {
     set tomorrow [clock add [start_of_day] 1 day]
-    return [db eval [string cat {
+    return [db eval [substcmd {
         SELECT cards.uid FROM cards
         WHERE next_rep < $tomorrow
         AND reps > 0 AND
-    } [get_cards_where_clause] {
+        [get_cards_where_tag_clause]
         ORDER BY next_rep - last_rep
     }]]
 }
 
 proc morji::get_forgotten_cards {} {
     set tomorrow [clock add [start_of_day] 1 day]
-    return [db eval [string cat {
+    return [db eval [substcmd {
         SELECT cards.uid FROM cards
         WHERE next_rep < $tomorrow
         AND reps = 0 AND
-    } [get_cards_where_clause] {
+        [get_cards_where_tag_clause]
         ORDER BY next_rep - last_rep
         LIMIT 25
     }]]
 }
 
 proc morji::get_new_cards {} {
-    return [db eval [string cat {
+    return [db eval [substcmd {
         SELECT min(cards.uid) FROM cards
         WHERE cards.next_rep ISNULL AND
-    } [get_cards_where_clause] {
+        [get_cards_where_tag_clause]
         GROUP BY fact_uid
         LIMIT 5
     }]]
@@ -436,10 +440,10 @@ proc morji::parse_card {text} {
     set fields [textutil::splitx $text {(@(?:Question|Answer|Notes|Type|Tags):)}]
     set field_contents [dict create]
     set current_field ""
-    foreach f {{@Question:} {@Answer:} {@Notes:} {@Type:} {@Tags:}} { dict set field_contents $f "" }
+    foreach f {@Question: @Answer: @Notes: @Type: @Tags:} { dict set field_contents $f "" }
     foreach field $fields {
         switch $field {
-            {@Question:} - {@Answer:} - {@Notes:} - {@Type:} - {@Tags:} {
+            @Question: - @Answer: - @Notes: - @Type: - @Tags: {
                 check_field $field_contents $field
                 set current_field $field
             }
@@ -478,6 +482,7 @@ proc morji::get_line {prompt} {
 }
 
 proc morji::draw_line {} {
+    # NOTE: this is suboptimal
     puts [string repeat ─ [::term::ansi::ctrl::unix::columns]]
 }
 
@@ -518,6 +523,7 @@ proc morji::put_context_independent_keys {} {
   N      new card
   t      select tags with glob pattern
   T      deselect tags with glob pattern
+  S      show statistics
   Q      quit program}
 }
 
@@ -560,10 +566,12 @@ proc morji::markup::cloze {cloze {hint {[…]}}} {
         morji::with_style bold {
             puts -nonewline $hint
         }
-    } elseif {$morji::markup::CLOZE <= 42} {
+    } elseif {$morji::markup::CLOZE <= -42} {
+        puts -nonewline "\[cloze $cloze "
         morji::with_style bold {
-            puts -nonewline "\[$cloze|$hint\]"
+            puts -nonewline $hint
         }
+        puts -nonewline "\]"
     } else {
         puts -nonewline $cloze
     }
@@ -673,6 +681,9 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
     }
     if {$answer eq "" && $type ne "cloze"} {
         warn "Answer field is empty"
+    }
+    if {$answer ne "" && $type eq "cloze"} {
+        warn "Answer field not used for card of type “cloze”"
     }
     set tags [textutil::splitx $tags]
     set tags [lsearch -inline -all -not -exact $tags all]
@@ -870,9 +881,47 @@ proc morji::handle_base_key {key} {
             return restart
         }
         N { edit_new_card; return restart }
+        S { statistics; return 1 }
         Q { puts ""; return quit }
         ? { put_context_independent_help; return 1 }
     }
+}
+
+proc morji::put_stats {key value} {
+    put_header $key cyan
+    puts $value
+}
+
+proc morji::statistics {} {
+    set unseen [db eval [substcmd {
+        SELECT count(*) FROM cards WHERE next_rep ISNULL AND [get_cards_where_tag_clause]
+    }]]
+    put_stats "Unseen cards" $unseen
+    set not_memorized [db eval [substcmd {
+        SELECT count(*) FROM cards WHERE reps = 0 AND [get_cards_where_tag_clause]
+    }]]
+    put_stats "Cards not memorized" $not_memorized
+    set memorized [db eval [substcmd {
+        SELECT count(*) FROM cards WHERE reps > 0 AND [get_cards_where_tag_clause]
+    }]]
+    put_stats "Memorized cards" $memorized
+    set i 0
+    set counts {}
+    set after [clock add [start_of_day] 1 day]
+    while {$i < 7} {
+        set before $after
+        set after [clock add $after 1 day]
+        set scheduled [db eval [substcmd {
+            SELECT count(*) FROM cards
+            WHERE next_rep < $after
+            AND $before <= next_rep
+            AND reps > 0
+            AND [get_cards_where_tag_clause]
+        }]]
+        lappend counts $scheduled
+        incr i
+    }
+    put_stats "Cards scheduled for next days" $counts
 }
 
 ######################### main loop stuff ################
