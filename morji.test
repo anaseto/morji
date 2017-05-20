@@ -240,6 +240,10 @@ namespace eval morji::test {
             if {$tags ne $expected} {
                 return "bad tags: $tags (expected: $expected)"
             }
+            set tags_all [lsort [db eval {SELECT name FROM tags}]]
+            if {$tags ne $tags_all} {
+                return "orphaned tags: $tags_all should be $tags"
+            }
             return ok
         }
         foreach {tags expected} {
@@ -258,8 +262,57 @@ namespace eval morji::test {
         return ok
     } -cleanup {
         db close
-    } -result ok
+    } -result ok -returnCodes 2
 
+    test update_cloze_fact-1 {update cloze fact} -setup {
+        morji::init_state
+    } -body {
+        set test_uid [morji::add_fact {[cloze a b], [cloze c d], [cloze e f]} {} notes cloze mytag]
+        morji::update_fact $test_uid {[cloze a b], [cloze cc d], [cloze e f]} {} notes cloze mytag
+        set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$test_uid}]
+        if {$count != 3} {
+            return "bad count: $count"
+        }
+        set i 0
+        db eval {SELECT * FROM facts WHERE uid=$test_uid} {
+            if {$type ne "cloze"} {
+                return "bad type: $type (expected cloze)";
+            }
+            set data {{0 a b} {1 cc d} {2 e f}}
+            set i 0
+            db eval {SELECT * FROM cards WHERE fact_uid=$test_uid} {
+                foreach {field value} [list last_rep {} next_rep {} easyness 2.5 reps 0 fact_data [lindex $data $i]] {
+                    if {[set $field] ne $value} {
+                        return "bad $field for card $i: [set $field] (expected $value)"
+                    }
+                }
+                incr i
+            }
+        }
+        morji::update_fact $test_uid {[cloze a b], [cloze cc d]} {} notes cloze mytag
+        set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$test_uid}]
+        if {$count != 2} {
+            return "bad count: $count"
+        }
+        db eval {SELECT * FROM facts WHERE uid=$test_uid} {
+            if {$type ne "cloze"} {
+                return "bad type: $type (expected cloze)";
+            }
+            set data {{0 a b} {1 cc d}}
+            set i 0
+            db eval {SELECT * FROM cards WHERE fact_uid=$test_uid} {
+                foreach {field value} [list last_rep {} next_rep {} easyness 2.5 reps 0 fact_data [lindex $data $i]] {
+                    if {[set $field] ne $value} {
+                        return "bad $field for card $i: [set $field] (expected $value)"
+                    }
+                }
+                incr i
+            }
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
 }
 
 ############################# Main stuff #############################################

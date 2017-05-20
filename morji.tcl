@@ -124,6 +124,9 @@ proc morji::add_fact {question answer notes type {tags {}}} {
 
 proc morji::update_fact {fact_uid question answer notes type tags} {
     set otype [db eval {SELECT type FROM facts WHERE uid=$fact_uid}]
+    if {$otype ni {oneside twoside cloze}} {
+        error "internal error: invalid otype: $otype"
+    }
     db eval {UPDATE facts SET question=$question, answer=$answer, notes=$notes WHERE uid=$fact_uid}
     if {($otype eq "oneside") && ($type eq "twoside")} {
         db eval {UPDATE cards SET fact_data = 'R' WHERE fact_uid = $fact_uid}
@@ -135,6 +138,9 @@ proc morji::update_fact {fact_uid question answer notes type tags} {
         db eval {UPDATE cards SET fact_data = '' WHERE fact_uid=$fact_uid}
     } elseif {($type ne $otype)} {
         warn "card of type $otype cannot become of type $type"
+    }
+    if {($otype eq "cloze")} {
+        update_cloze_fact $fact_uid $question
     }
     if {$type ni {oneside twoside cloze}} {
         warn "invalid type: $type"
