@@ -61,7 +61,7 @@ proc morji::init_state {{dbfile :memory:}} {
             question TEXT NOT NULL,
             answer TEXT NOT NULL,
             notes TEXT NOT NULL,
-            -- simple/voc(recognition/production)/cloze...
+            -- oneside/twoside(recognition/production)/cloze...
             type TEXT NOT NULL
         )
     }
@@ -77,13 +77,13 @@ proc morji::add_fact {question answer notes type {tags {}}} {
     db eval {INSERT INTO facts(question, answer, notes, type) VALUES($question, $answer, $notes, $type)}
     set fact_uid [db last_insert_rowid]
     switch $type {
-        simple {
+        oneside {
             db eval {
                 INSERT INTO cards(reps, fact_uid, fact_data)
                 VALUES(0, $fact_uid, "")
             }
         }
-        voc {
+        twoside {
             foreach fact_data {R P} {
                 db eval {
                     INSERT INTO cards(reps, fact_uid, fact_data)
@@ -125,18 +125,18 @@ proc morji::add_fact {question answer notes type {tags {}}} {
 proc morji::update_fact {fact_uid question answer notes type tags} {
     set otype [db eval {SELECT type FROM facts WHERE uid=$fact_uid}]
     db eval {UPDATE facts SET question=$question, answer=$answer, notes=$notes WHERE uid=$fact_uid}
-    if {($otype eq "simple") && ($type eq "voc")} {
+    if {($otype eq "oneside") && ($type eq "twoside")} {
         db eval {UPDATE cards SET fact_data = 'R' WHERE fact_uid = $fact_uid}
         db eval {UPDATE facts SET type=$type WHERE uid=$fact_uid}
         db eval {INSERT INTO cards(reps, fact_uid, fact_data) VALUES(0, $fact_uid, 'P')}
-    } elseif {($otype eq "voc") && ($type eq "simple")} {
+    } elseif {($otype eq "twoside") && ($type eq "oneside")} {
         db eval {DELETE FROM cards WHERE fact_uid=$fact_uid AND fact_data = 'P'}
         db eval {UPDATE facts SET type=$type WHERE uid=$fact_uid}
         db eval {UPDATE cards SET fact_data = '' WHERE fact_uid=$fact_uid}
     } elseif {($type ne $otype)} {
         warn "card of type $otype cannot become of type $type"
     }
-    if {$type ni {simple voc cloze}} {
+    if {$type ni {oneside twoside cloze}} {
         warn "invalid type: $type"
     }
     update_tags_for_fact $fact_uid $tags
@@ -200,7 +200,7 @@ proc morji::update_tags_for_fact {fact_uid tags} {
         WHERE EXISTS(SELECT 1 FROM fact_tags WHERE fact_uid=$fact_uid AND tag_uid = tags.uid)
     }]
     # new tags
-    foreach tag $tags {
+    foreach tag [lsort -unique $tags] {
         if {$tag eq "all"} {
             continue
         }
@@ -346,6 +346,9 @@ proc morji::deselect_tags {pattern} {
 proc morji::schedule_card {uid grade} {
     variable START_TIME
     db eval {SELECT last_rep, next_rep, easyness, reps, fact_uid FROM cards WHERE uid=$uid} break
+    if {![info exists reps]} {
+        error "internal error: schedule_card: card does not exist: $uid"
+    }
     # grades are the same as in anki: again, hard, good, easy
     if {(($reps == 0) && ($grade eq "again"))} {
         # card was new or forgotten already, so no change
@@ -396,8 +399,9 @@ proc morji::schedule_card {uid grade} {
         }
     }
     if {$reps > 0} {
+        set interval [expr {$last_rep eq "" ? 0 : $new_next_rep-$last_rep}]
         set new_next_rep [
-            clock add $new_next_rep [interval_noise [expr {$new_next_rep-$new_last_rep}]] days
+            clock add $new_next_rep [interval_noise $interval] days
         ]
     }
     while {[db exists {SELECT 1 FROM cards WHERE fact_uid=$fact_uid AND uid!=$uid AND next_rep=$new_next_rep}]} {
@@ -423,7 +427,7 @@ proc morji::interval_noise {interval} {
     } elseif {$interval <= 60 * $day} {
         set noise [expr {$day * (rand() * 7 - 3)}]
     } else {
-        set noise [expr {$interval * (-0.5 + 0.1 * rand())}]
+        set noise [expr {$interval * (-0.05 + 0.1 * rand())}]
     }
     return [expr {int($noise / $day)}]
 }
@@ -584,8 +588,8 @@ foreach {n s} {lbracket \[ rbracket \]} {
 proc morji::put_question {question answer type fact_data} {
     put_header "Question"
     switch $type {
-        simple { put_text $question }
-        voc {
+        oneside { put_text $question }
+        twoside {
             if {$fact_data eq "R"} {
                 put_text $question
             } else {
@@ -608,8 +612,8 @@ proc morji::put_tags {type tags} {
 proc morji::put_answer {question answer notes type fact_data} {
     put_header "Answer"
     switch $type {
-        simple { put_text $answer }
-        voc {
+        oneside { put_text $answer }
+        twoside {
             if {$fact_data eq "R"} {
                 put_text $answer
             } else {

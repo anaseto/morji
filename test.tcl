@@ -1,5 +1,6 @@
 namespace eval morji {
     variable TEST 1
+    namespace eval test {}
 }
 source -encoding utf-8 morji.tcl
 
@@ -18,32 +19,69 @@ proc morji::test_go_to_next_day {} {
     tailcall run
 }
 
-proc morji::test {} {
+proc morji::interactive_test {} {
+    variable START_TIME
     init
     set i 0
     db transaction {
-        while {$i < 2} {
-            add_fact "What is the \[lbracket\]important\[rbracket\] n°\[em $i\] answer?" "The answer n°\[em $i\]" notes simple english
+        while {$i < 1} {
+            add_fact "What is the \[lbracket\]important\[rbracket\] n°\[em $i\] answer?" "The answer n°\[em $i\]" notes oneside english
             incr i
         }
     }
     set i 0
     db transaction {
-        while {$i < 2} {
-            add_fact "hitz \[em $i\]" "vorto \[em $i\]" notes voc lojban
+        while {$i < 1} {
+            add_fact "hitz \[em $i\]" "vorto \[em $i\]" notes twoside lojban
             incr i
         }
     }
-    set i 1
-    #db transaction {
-        #while {$i < 5000} {
-            #schedule_card $i good
-            #incr i
-        #}
-    #}
+    main
+}
+
+proc morji::test_stuff {} {
+    variable START_TIME
+    init
+    set i 0
+    db transaction {
+        while {$i < 1000} {
+            add_fact "What is the \[lbracket\]important\[rbracket\] n°\[em $i\] answer?" "The answer n°\[em $i\]" notes oneside english
+            incr i
+        }
+    }
+    set i 0
+    db transaction {
+        while {$i < 1000} {
+            add_fact "hitz \[em $i\]" "vorto \[em $i\]" notes twoside lojban
+            incr i
+        }
+    }
+    db transaction {
+        set j 0
+        set interval 0
+        while {$j < 400} {
+            set cards [get_today_cards]
+            foreach uid $cards {
+                schedule_card $uid good
+            }
+            set START_TIME [clock add $START_TIME 1 day]
+            set i [expr {$j * 15 + 1}]
+            while {$i < 1000 && $i <= ($j+1) * 15 && $i > $j * 15} {
+                schedule_card $i good
+                incr i
+            }
+            incr j
+            db eval {SELECT last_rep, next_rep FROM cards WHERE uid=1 AND next_rep NOTNULL} break
+            set new_interval [expr {int(($next_rep-$last_rep)/86400)}] 
+            if {$new_interval != $interval} {
+                set interval $new_interval
+                puts $new_interval
+            }
+        }
+    }
+    db close
     #puts [check_database]
     #dump_database
-    main
 }
 
 proc morji::dump_database {} {
@@ -65,4 +103,4 @@ proc morji::check_database {} {
     return [string equal $ret ""]
 }
 
-morji::test
+morji::interactive_test

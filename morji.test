@@ -1,0 +1,267 @@
+# vim:ft=tcl
+namespace eval morji {
+    variable TEST 1
+    namespace eval test {}
+}
+source -encoding utf-8 morji.tcl
+
+package require tcltest
+namespace import ::tcltest::*
+
+############################# Tests #############################################
+
+namespace eval morji::test {
+    test before_init {namespace variables} {
+        return $morji::markup::CLOZE
+    } -result 0
+
+    test init {state vars} -setup {
+        morji::init_state
+    } -body {
+        return "$morji::FIRST_ACTION_FOR_CARD $morji::ANSWER_ALREADY_SEEN"
+    } -cleanup {
+        db close
+    } -result {1 0}
+
+    test tables {normal init} -setup {
+        morji::init_state
+    } -body {
+        foreach table {cards tags fact_tags facts} {
+            set ret [db eval {SELECT name FROM sqlite_master WHERE type='table' AND name=$table}]
+            if {$ret eq ""} {
+                return "table $table does not exist"
+            }
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
+    test add_oneside_fact {add oneside fact} -setup {
+        morji::init_state
+    } -body {
+        set uid [morji::add_fact question answer notes oneside mytag]
+        foreach tag {mytag all} {
+            if {![db exists {SELECT 1 FROM tags WHERE name=$tag}]} {
+                return "tag not found: $tag"
+            }
+        }
+        if {![db exists {SELECT 1 FROM cards WHERE fact_uid=$uid}]} {
+            return "no card"
+        }
+        db eval {SELECT * FROM cards WHERE fact_uid=$uid} {
+            foreach {field value} [list last_rep {} next_rep {} easyness 2.5 reps 0 fact_data {}] {
+                if {[set $field] ne $value} {
+                    return "bad $field: [set $field] (expected $value)"
+                }
+            }
+        }
+        db eval {SELECT * FROM facts WHERE uid=$uid} {
+            foreach field {question answer notes} {
+                if {[set $field] ne $field} {
+                    return "bad $field: [set $field]"
+                }
+            }
+            if {$type ne "oneside"} {
+                return "bad type: $type"
+            }
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
+    test add_twoside_fact {add twoside fact} -setup {
+        morji::init_state
+    } -body {
+        set uid [morji::add_fact question answer notes twoside mytag]
+        set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
+        if {$count != 2} {
+            return "incorrect number of cards: $count (expected 2)"
+        }
+        set data R
+        db eval {SELECT * FROM cards WHERE fact_uid=$uid} {
+            foreach {field value} [list last_rep {} next_rep {} easyness 2.5 reps 0 fact_data $data] {
+                if {[set $field] ne $value} {
+                    return "bad $field: [set $field] (expected $value)"
+                }
+            }
+            set data P
+        }
+        db eval {SELECT * FROM facts WHERE uid=$uid} {
+            if {$type ne "twoside"} {
+                return "bad type: $type"
+            }
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
+    test add_cloze_fact {add cloze fact} -setup {
+        morji::init_state
+    } -body {
+        set uid [morji::add_fact {[cloze a b] and [cloze c d] and [cloze e f]} {} notes cloze mytag]
+        set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
+        if {$count != 3} {
+            return "incorrect number of cards: $count (expected 2)"
+        }
+        set data {{0 a b} {1 c d} {2 e f}}
+        set i 0
+        db eval {SELECT * FROM cards WHERE fact_uid=$uid} {
+            foreach {field value} [list last_rep {} next_rep {} easyness 2.5 reps 0 fact_data [lindex $data $i]] {
+                if {[set $field] ne $value} {
+                    return "bad $field: [set $field] (expected $value)"
+                }
+            }
+            incr i
+        }
+        db eval {SELECT * FROM facts WHERE uid=$uid} {
+            if {$type ne "cloze"} {
+                return "bad type: $type"
+            }
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
+    test update_oneside_fact-1 {update oneside fact} -setup {
+        morji::init_state
+    } -body {
+        set uid [morji::add_fact question answer notes oneside mytag]
+        morji::update_fact $uid question_updated answer_updated notes_updated oneside {mytag newtag}
+        set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
+        if {$count != 1} {
+            return "bad count: $count"
+        }
+        db eval {SELECT * FROM facts WHERE uid=$uid} {
+            foreach field {question answer notes} {
+                if {[set $field] ne "${field}_updated"} {
+                    return "bad $field: [set $field] (expected ${field}_updated)"
+                }
+            }
+            if {$type ne "oneside"} {
+                return "bad type: $type (expected oneside)";
+            }
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
+    test update_oneside_fact-2 {update one side fact (type changed to twoside)} -setup {
+        morji::init_state
+    } -body {
+        set uid [morji::add_fact question answer notes oneside mytag]
+        morji::update_fact $uid question_updated answer_updated notes_updated twoside {mytag newtag}
+        set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
+        if {$count != 2} {
+            return "bad count: $count"
+        }
+        db eval {SELECT * FROM facts WHERE uid=$uid} {
+            if {$type ne "twoside"} {
+                return "bad type: $type (expected twoside)";
+            }
+        }
+        set data R
+        db eval {SELECT * FROM cards WHERE fact_uid=$uid} {
+            if {$fact_data ne $data} {
+                return "bad fact_data: $fact_data (expected $data)"
+            }
+            set data P
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
+    test update_twoside_fact-1 {update twoside fact} -setup {
+        morji::init_state
+    } -body {
+        set uid [morji::add_fact question answer notes twoside mytag]
+        morji::update_fact $uid question_updated answer_updated notes_updated twoside {mytag newtag}
+        set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
+        if {$count != 2} {
+            return "bad count: $count"
+        }
+        db eval {SELECT * FROM facts WHERE uid=$uid} {
+            foreach field {question answer notes} {
+                if {[set $field] ne "${field}_updated"} {
+                    return "bad $field: [set $field] (expected ${field}_updated)"
+                }
+            }
+            if {$type ne "twoside"} {
+                return "bad type: $type (expected twoside)";
+            }
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
+    test update_twoside_fact-2 {update twoside fact (change type to oneside)} -setup {
+        morji::init_state
+    } -body {
+        set uid [morji::add_fact question answer notes twoside mytag]
+        morji::update_fact $uid question_updated answer_updated notes_updated oneside {mytag newtag}
+        set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
+        if {$count != 1} {
+            return "bad count: $count"
+        }
+        db eval {SELECT * FROM facts WHERE uid=$uid} {
+            foreach field {question answer notes} {
+                if {[set $field] ne "${field}_updated"} {
+                    return "bad $field: [set $field] (expected ${field}_updated)"
+                }
+            }
+            if {$type ne "oneside"} {
+                return "bad type: $type (expected oneside)";
+            }
+        }
+        db eval {SELECT fact_data FROM cards WHERE fact_uid=$uid} {
+            if {$fact_data ne ""} {
+                return "bad fact_data: $fact_data"
+            }
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
+    test update_tags {update tags} -setup {
+        morji::init_state
+    } -body {
+        set uid [morji::add_fact question answer notes oneside mytag]
+        proc new_tags {uid tags expected} {
+            morji::update_fact $uid question answer notes oneside $tags
+            set tags [db eval {SELECT name FROM tags, fact_tags WHERE tags.uid = fact_tags.tag_uid AND fact_tags.fact_uid=$uid}]
+            set tags [lsort $tags]
+            if {$tags ne $expected} {
+                return "bad tags: $tags (expected: $expected)"
+            }
+            return ok
+        }
+        foreach {tags expected} {
+            {mytag newtag} {all mytag newtag}
+            {mytag} {all mytag}
+            {mytag all all} {all mytag}
+            {mytag mytag} {all mytag}
+            {} {all}
+            {newtag othertag othertag} {all newtag othertag}
+        } {
+            set ret [new_tags $uid $tags $expected]
+            if {$ret ne "ok"} {
+                return $ret
+            }
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
+}
+
+############################# Main stuff #############################################
+
+namespace delete morji::test
