@@ -159,6 +159,7 @@ proc morji::update_cloze_fact {fact_uid question} {
         incr i
     }
     if {[llength $ocards] == 2 * [llength $nclozes]} {
+        # TODO: add more heuristics?
         foreach {uid ocloze} $ocards {
             set ncloze [lindex $nclozes [lindex $ocloze 0]]
             db eval {UPDATE cards SET fact_data=$ncloze WHERE uid=$uid}
@@ -167,9 +168,9 @@ proc morji::update_cloze_fact {fact_uid question} {
     }
     set nclozes_first [lmap cloze $nclozes {lindex $cloze 1}]
     foreach {uid ocloze} $ocards {
-        set found [lsearch -exact [lindex $ocloze 1] $nclozes_first]
+        set found [lsearch -exact $nclozes_first [lindex $ocloze 1]]
         if {$found > -1} {
-            set ncloze [lindex $nclozes [lindex $ocloze 0]]
+            set ncloze [lindex $nclozes $found]
             db eval {UPDATE cards SET fact_data=$ncloze WHERE uid=$uid}
         } else {
             db eval {DELETE FROM cards WHERE uid=$uid}
@@ -177,7 +178,7 @@ proc morji::update_cloze_fact {fact_uid question} {
     }
     set oclozes_first [lmap {uid cloze} $ocards {lindex $cloze 1}]
     foreach ncloze $nclozes {
-        set found [lsearch -exact [lindex $ncloze 1] $oclozes_first]
+        set found [lsearch -exact $oclozes_first [lindex $ncloze 1]]
         if {$found == -1} {
             db eval {
                 INSERT INTO cards(reps, fact_uid, fact_data)
@@ -251,8 +252,8 @@ proc morji::delete_fact {fact_uid} {
 
 proc morji::start_of_day {} {
     variable START_TIME
-    set fmt %d/%m/%y
-    return [clock add [clock scan [clock format $START_TIME -format $fmt] -format $fmt] 2 hours]
+    set fmt %d/%m/%Y
+    return [clock add [clock scan [clock format [clock add $START_TIME -2 hours] -format $fmt] -format $fmt] 2 hours]
 }
 
 proc morji::substcmd {text} {
@@ -405,12 +406,12 @@ proc morji::schedule_card {uid grade} {
         }
     }
     if {$reps > 0} {
-        set interval [expr {$last_rep eq "" ? 0 : $new_next_rep-$last_rep}]
-        set new_next_rep [
-            clock add $new_next_rep [interval_noise $interval] days
-        ]
+        #set interval [expr {$last_rep eq "" ? 0 : $new_next_rep-$new_last_rep}]
+        #set new_next_rep [
+        #    clock add $new_next_rep [interval_noise $interval] days
+        #]
     }
-    while {[db exists {SELECT 1 FROM cards WHERE fact_uid=$fact_uid AND uid!=$uid AND next_rep=$new_next_rep}]} {
+    while {[db exists {SELECT 1 FROM cards WHERE fact_uid=$fact_uid AND uid!=$uid AND abs(next_rep-$new_next_rep) < 86400}]} {
         # avoid putting sister cards on the same day
         set new_next_rep [clock add $new_next_rep 1 day]
     }
