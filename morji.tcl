@@ -3,7 +3,7 @@ package require term::ansi::ctrl::unix
 package require term::ansi::send
 package require textutil
 
-# TODO: backups, tests, recuperar db mnemosyne
+# TODO: backups, more tests, recuperar db mnemosyne
 
 ######################### namespace state ################ 
 
@@ -675,6 +675,9 @@ proc morji::edit_existent_card {card_uid} {
         flush $tmp
         seek $tmp 0
         db eval {SELECT fact_uid FROM cards WHERE uid=$card_uid} break
+        if {$fact_uid eq ""} {
+            error "internal error: edit_existent_card: no fact_uid"
+        }
         edit_card $tmp $tmpfile $fact_uid
     }
 }

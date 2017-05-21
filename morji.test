@@ -362,10 +362,13 @@ namespace eval morji::test {
             while {$j < 400} {
                 set i [expr {$j * 5 + 1}]
                 while {$i < 90 && $i <= ($j+1) * 5 && $i > $j * 5} {
-                    if {rand() > 0.05} {
-                        morji::schedule_card $i good
-                    } else {
+                    set r [expr {rand()}]
+                    if {$r < 0.03} {
                         morji::schedule_card $i hard
+                    } elseif {$r < 0.5} {
+                        morji::schedule_card $i easy
+                    } else {
+                        morji::schedule_card $i good
                     }
                     db eval {SELECT last_rep, next_rep, reps FROM cards WHERE uid=$i AND next_rep NOTNULL} {
                         set interval($i) [expr {$next_rep-$last_rep}] 
@@ -374,12 +377,15 @@ namespace eval morji::test {
                 }
                 set morji::START_TIME [clock add $morji::START_TIME 1 day]
                 set cards [morji::get_today_cards]
+                lappend cards {*}[morji::get_forgotten_cards]
                 foreach uid $cards {
                     set r [expr {rand()}]
                     if {$r < 0.03} {
                         morji::schedule_card $uid hard
                     } elseif {$r < 0.5} {
                         morji::schedule_card $uid easy
+                    } elseif {$r < 0.7} {
+                        morji::schedule_card $uid again
                     } else {
                         morji::schedule_card $uid good
                     }
@@ -411,7 +417,7 @@ namespace eval morji::test {
                         if {$interval($uid) > 0 && $reps > 2 && $new_interval_days >= 12 && !($ratio_min > $easyness-0.1)} {
                             return "bad interval: $easyness $reps $new_interval_days/$interval_days $ratio_min (too little)"
                         }
-                        if {$interval($uid) > 0 && $reps == 2 && ($new_interval_days < 4 || $new_interval_days > 8)} {
+                        if {$interval($uid) > 0 && $reps == 2 && $interval($uid) < 5 && ($new_interval_days < 4 || $new_interval_days > 8)} {
                             return "bad interval: $new_interval_days (expected >= 4 and <= 8)"
                         }
                         set interval($uid) $new_interval($uid)
@@ -424,6 +430,168 @@ namespace eval morji::test {
     } -cleanup {
         db close
     } -result ok
+
+    test scheduling-2 {scheduling: interval noise} -body {
+        set day 86400
+        for {set i 0} {$i <= 10} {incr i} {
+            set noise [morji::interval_noise [expr {$i * $day}]]
+            if {$noise > 1} {
+                return "bad noise: $noise (expected <= 1)"
+            }
+        }
+        return ok
+    } -result ok
+
+    test scheduling-3 {scheduling: interval noise} -body {
+        set day 86400
+        for {set i 11} {$i <= 20} {incr i} {
+            set noise [morji::interval_noise [expr {$i * $day}]]
+            if {$noise > 2} {
+                return "bad noise: $noise (expected <= 2)"
+            }
+        }
+        return ok
+    } -result ok
+
+    test scheduling-3 {scheduling: interval noise} -body {
+        set day 86400
+        for {set i 21} {$i <= 60} {incr i} {
+            set noise [morji::interval_noise [expr {$i * $day}]]
+            if {$noise > 3} {
+                return "bad noise: $noise (expected <= 3)"
+            }
+        }
+        return ok
+    } -result ok
+
+    test scheduling-4 {scheduling: interval noise} -body {
+        set day 86400
+        for {set i 61} {$i <= 100} {incr i} {
+            set noise [morji::interval_noise [expr {$i * $day}]]
+            if {$noise > $i * 0.05} {
+                return "bad noise: $noise (too large)"
+            }
+        }
+        return ok
+    } -result ok
+
+    test parse_card-1 {parse card} -body {
+        morji::parse_card {@Question: question}
+    } -result {question {} {} {} {}}
+
+    test parse_card-2 {parse card} -body {
+        morji::parse_card {@Answer: answer}
+    } -result {{} answer {} {} {}}
+
+    test parse_card-3 {parse card} -body {
+        morji::parse_card {@Notes: notes}
+    } -result {{} {} notes {} {}}
+
+    test parse_card-4 {parse card} -body {
+        morji::parse_card {@Type: oneside}
+    } -result {{} {} {} oneside {}}
+
+    test parse_card-5 {parse card} -body {
+        morji::parse_card {@Tags: mytag}
+    } -result {{} {} {} {} mytag}
+
+    test parse_card-6 {parse card} -body {
+        morji::parse_card {@Question: question @Tags: mytag @Answer: the answer}
+    } -result {question {the answer} {} {} mytag}
+
+    test put_text-1 {put text} -body {
+        morji::put_text text
+    } -output "text\n"
+
+    test put_text-2 {put text} -body {
+        morji::put_text {text [em emphasis]}
+    } -output "text [::term::ansi::code::ctrl::sda_bold]emphasis[::term::ansi::code::ctrl::sda_nobold]\n"
+
+    test put_draw_line-1 {draw line} -body {
+        morji::draw_line
+    } -match regexp -output {─}
+
+    test put_help-1 {put help} -body {
+        morji::put_help
+    } -match regexp -output {Keys [(]on current card[)]}
+
+    test put_help-2 {put initial help} -body {
+        morji::put_help_initial_schedule_prompt
+    } -match regexp -output {grade card memorization}
+
+    test put_help-3 {put context independent help} -body {
+        morji::put_context_independent_help
+    } -match regexp -output {show this help}
+
+    test put_bracket-1 {put bracket} -body {
+        morji::markup::lbracket
+    } -output {[}
+
+    test put_bracket-2 {put bracket} -body {
+        morji::markup::rbracket
+    } -output {]}
+
+    proc bold {text} {
+        return "[::term::ansi::code::ctrl::sda_bold]$text[::term::ansi::code::ctrl::sda_nobold]"
+    }
+
+    test put_cloze-1 {put cloze} -body {
+        set morji::markup::CLOZE 0
+        morji::markup::cloze cloze hint
+    } -result -1 -output "[bold hint]"
+
+    test put_cloze-2 {put cloze} -body {
+        set morji::markup::CLOZE 0
+        morji::markup::cloze cloze
+    } -result -1 -output "[bold \[…\]]"
+
+    test put_cloze-3 {put cloze} -body {
+        set morji::markup::CLOZE -42
+        morji::markup::cloze cloze hint
+    } -result -43 -output "\[cloze cloze [bold hint]\]"
+
+    test put_cloze-4 {put cloze} -body {
+        set morji::markup::CLOZE 1
+        morji::markup::cloze cloze hint
+    } -result 0 -output "cloze"
+
+    test show_fact-1 {show fact} -setup {
+        morji::init_state
+        morji::add_fact "What is the \[lbracket\]important\[rbracket\] n°\[em 1\] answer?" "The answer n°\[em 1\]" notes oneside english
+    } -body {
+        morji::show_fact 1 {mytag}
+        return ok
+    } -cleanup {
+        db close
+    } -result ok -match regexp -output "Question:.*important.*\n.*Answer:.*answer.*Tags:.*mytag"
+
+    test show_fact-2 {show fact} -setup {
+        morji::init_state
+        set uid [morji::add_fact {[cloze a b], [cloze c d], [cloze e f]} {} notes cloze mytag]
+    } -body {
+        morji::show_fact 1 {mytag}
+        return ok
+    } -cleanup {
+        db close
+    } -result ok -match regexp -output {Question:.*cloze.*b.*cloze.*c.*cloze.*e.*Notes:.*notes.*Type:.*cloze.*Tags:.*mytag}
+
+    test show_cards_scheduled_next_week-1 {show scheduled cards} -setup {
+        morji::init_state
+    } -body {
+        morji::show_cards_scheduled_next_week
+        return ok
+    } -cleanup {
+        db close
+    } -result ok -match regexp -output "Cards scheduled for next days\[^\d\]*0 0 0 0 0 0 0\n"
+
+    test show_statistics-1 {show statistics} -setup {
+        morji::init_state
+    } -body {
+        morji::show_statistics
+        return ok
+    } -cleanup {
+        db close
+    } -result ok -match regexp -output "Unseen cards.*0.*Cards not memorized.*0.*Memorized cards.*0"
 }
 
 ############################# Main stuff #############################################
