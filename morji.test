@@ -594,6 +594,4 @@ namespace eval morji::test {
     } -result ok -match regexp -output "Unseen cards.*0.*Cards not memorized.*0.*Memorized cards.*0"
 }
 
-############################# Main stuff #############################################
-
 namespace delete morji::test
