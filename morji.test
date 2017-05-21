@@ -382,9 +382,9 @@ namespace eval morji::test {
                     set r [expr {rand()}]
                     if {$r < 0.03} {
                         morji::schedule_card $uid hard
-                    } elseif {$r < 0.5} {
+                    } elseif {$r < 0.05} {
                         morji::schedule_card $uid easy
-                    } elseif {$r < 0.7} {
+                    } elseif {$r < 0.07} {
                         morji::schedule_card $uid again
                     } else {
                         morji::schedule_card $uid good
