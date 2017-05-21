@@ -394,7 +394,6 @@ namespace eval morji::test {
                         if {$new_interval($uid) == $interval($uid)} {
                             break
                         }
-                        set ratio [expr {double($new_interval($uid))/$interval($uid)}]
                         set new_interval_days [expr {double($new_interval($uid))/$day}]
                         set interval_days [expr {double($interval($uid))/$day}]
                         # i' = i * easyness
