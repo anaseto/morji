@@ -382,10 +382,6 @@ proc morji::schedule_card {uid grade} {
         set new_next_rep $next_rep
         set reps 0
     }
-    #set day 86400
-    #if {$next_rep ne "" && $reps > 0 && $new_last_rep - $next_rep > 1 * $day} {
-    #    puts stderr "[expr {double($new_last_rep)/$day}] vs [expr {double($next_rep)/$day}]"
-    #}
     switch $reps {
         0 { }
         1 { 
@@ -421,7 +417,7 @@ proc morji::schedule_card {uid grade} {
     while {[db exists {
                 SELECT 1 FROM cards
                 WHERE fact_uid=$fact_uid AND uid!=$uid
-                AND date(next_rep,'unixepoch') = date($new_next_rep, 'unixepoch')}]
+                AND date(next_rep-7200,'unixepoch') = date($new_next_rep-7200, 'unixepoch')}]
         } {
         # avoid putting sister cards on the same day
         set new_next_rep [clock add $new_next_rep 1 day]
