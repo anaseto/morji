@@ -63,6 +63,10 @@ proc morji::init_state {{dbfile :memory:}} {
             notes TEXT NOT NULL,
             -- oneside/twoside(recognition/production)/cloze...
             type TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS misc_info(
+            key TEXT NOT NULL PRIMARY KEY,
+            value TEXT
         )
     }
 
@@ -92,9 +96,6 @@ proc morji::add_fact {question answer notes type {tags {}}} {
             }
         }
         cloze {
-            if {$answer ne ""} {
-                warn "The Answer field is not used for cards of type “cloze”."
-            }
             set i 0
             foreach elt [get_clozes $question] {
                 set cmd [string range $elt 1 end-1]
@@ -517,6 +518,7 @@ proc morji::put_help_initial_schedule_prompt {} {
   a      grade card as not memorized (again)
   g      grade card memorization as good
   e      grade card memorization as easy
+  C      cancel operation
   E      edit new card
   Q      quit program}
 }
@@ -613,6 +615,7 @@ proc morji::put_question {question answer type fact_data} {
 
 proc morji::put_tags {type tags} {
     put_header "Tags" yellow
+    set tags [lsearch -inline -all -not -exact $tags all]
     puts $tags
 }
 
@@ -659,7 +662,9 @@ proc morji::with_tempfile {tmp tmpfile script} {
 
 proc morji::edit_new_card {} {
     with_tempfile tmp tmpfile {
-        put_card_fields $tmp
+        set type [db onecolumn {SELECT value FROM misc_info WHERE key='last_added_fact_type'}]
+        set tags [db onecolumn {SELECT value FROM misc_info WHERE key='last_added_fact_tags'}]
+        put_card_fields $tmp {} {} {} $type $tags
         flush $tmp
         seek $tmp 0
         edit_card $tmp $tmpfile
@@ -698,7 +703,6 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
     if {$answer ne "" && $type eq "cloze"} {
         warn "Answer field not used for card of type “cloze”"
     }
-    set tags [textutil::splitx $tags]
     set tags [lsearch -inline -all -not -exact $tags all]
     set tags [lsort -unique $tags]
     if {$fact_uid ne ""} {
@@ -717,8 +721,13 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
                 seek $tmp 0
                 delete_fact $fact_uid
                 tailcall edit_card $tmp $tmpfile
+            } elseif {$ret eq "cancel"} {
+                delete_fact $fact_uid
+                throw CANCEL {}
             }
         }
+        db eval {INSERT OR REPLACE INTO misc_info VALUES('last_added_fact_type', $type)}
+        db eval {INSERT OR REPLACE INTO misc_info VALUES('last_added_fact_tags', $tags)}
     }
 }
 
@@ -753,6 +762,7 @@ proc morji::ask_for_initial_grade {fact_uid} {
             return "scheduled"
         }
         E { return "edit" }
+        C { return "cancel" }
         ? {
             put_help_initial_schedule_prompt
             return ""

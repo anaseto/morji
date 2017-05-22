@@ -315,6 +315,23 @@ namespace eval morji::test {
         db close
     } -result ok
 
+    test delete_fact {delete fact} -setup {
+        morji::init_state
+        morji::add_fact question1 answer1 notes1 oneside mytag1
+        morji::add_fact question2 answer2 notes2 oneside mytag2
+    } -body {
+        morji::delete_fact 1
+        if {[db exists {SELECT 1 FROM facts WHERE uid=1}]} {
+            return "fact 1 not removed"
+        }
+        if {![db exists {SELECT 1 FROM facts WHERE uid=2}]} {
+            return "fact 2 removed"
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
     test get_clozes-1 {get clozes} -body {
         get_clozes {[cloze a b] [cloze c d] [cloze e {f g}]}
     } -result {{[cloze a b]} {[cloze c d]} {[cloze e {f g}]}}
@@ -345,14 +362,14 @@ namespace eval morji::test {
         set i 0
         db transaction {
             while {$i < 30} {
-                morji::add_fact "What is the \[lbracket\]important\[rbracket\] n°\[em $i\] answer?" "The answer n°\[em $i\]" notes oneside english
+                morji::add_fact "What is the answer n°\[em $i\]?" "This is the answer n°\[em $i\]" notes oneside english
                 incr i
             }
         }
         set i 0
         db transaction {
             while {$i < 30} {
-                morji::add_fact "hitz \[em $i\]" "vorto \[em $i\]" notes twoside lojban
+                morji::add_fact "hitz \[em $i\]" "valsi \[em $i\]" notes twoside lojban
                 incr i
             }
         }
@@ -370,7 +387,7 @@ namespace eval morji::test {
                     } else {
                         morji::schedule_card $i good
                     }
-                    db eval {SELECT last_rep, next_rep, reps FROM cards WHERE uid=$i AND next_rep NOTNULL} {
+                    db eval {SELECT last_rep, next_rep, reps FROM cards WHERE uid=$i} {
                         set interval($i) [expr {$next_rep-$last_rep}] 
                     }
                     incr i
@@ -380,6 +397,7 @@ namespace eval morji::test {
                 lappend cards {*}[morji::get_forgotten_cards]
                 foreach uid $cards {
                     set r [expr {rand()}]
+                    set reps_before [db onecolumn {SELECT reps FROM cards WHERE uid=$uid}]
                     if {$r < 0.03} {
                         morji::schedule_card $uid hard
                     } elseif {$r < 0.05} {
@@ -389,7 +407,15 @@ namespace eval morji::test {
                     } else {
                         morji::schedule_card $uid good
                     }
-                    db eval {SELECT last_rep, next_rep, reps, easyness FROM cards WHERE uid=$uid AND next_rep NOTNULL} {
+                    set reps_after [db onecolumn {SELECT reps FROM cards WHERE uid=$uid}]
+                    if {$r >= 0.05 && $r < 0.07} {
+                        if {$reps_after != 0} {
+                            return "bad reps for again: $reps_after"
+                        }
+                    } elseif {$reps_after != $reps_before + 1} {
+                            return "bad reps: $reps_before -> $reps_after"
+                    }
+                    db eval {SELECT last_rep, next_rep, reps, easyness FROM cards WHERE uid=$uid} {
                         set new_interval($uid) [expr {$next_rep-$last_rep}] 
                         if {$new_interval($uid) == $interval($uid)} {
                             break
@@ -591,6 +617,16 @@ namespace eval morji::test {
     } -cleanup {
         db close
     } -result ok -match regexp -output "Unseen cards.*0.*Cards not memorized.*0.*Memorized cards.*0"
+
+    test screen_start-1 {put screen start} -body {
+        morji::put_screen_start
+        return ok
+    } -result ok -match regexp -output "help"
+
+    test put_card_fields-1 {put card fields} -body {
+        morji::put_card_fields stdout question answer notes type mytag
+        return ok
+    } -result ok -output "@Question: question\n@Answer: answer\n@Notes: notes\n@Type: type\n@Tags: mytag\n"
 }
 
 namespace delete morji::test
