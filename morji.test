@@ -346,13 +346,21 @@ namespace eval morji::test {
     } -result {$x/42/\n}
 
     test start_of_day-1 {start of day} -body {
-        set morji::START_TIME [clock seconds]
-        expr {[morji::start_of_day] > [clock add [clock seconds] -1 day]}
+        set day 86400
+        for {set i 0} {$i < 300} {incr i} {
+            set morji::START_TIME [clock add [clock seconds] [expr {int(rand() * 2 * $day)}] seconds]
+            expr {[morji::start_of_day] > [clock add $morji::START_TIME -1 day]}
+        }
+        return 1
     } -result 1
 
     test start_of_day-2 {start of day} -body {
-        set morji::START_TIME [clock seconds]
-        expr {[morji::start_of_day] < [clock seconds]}
+        set day 86400
+        for {set i 0} {$i < 300} {incr i} {
+            set morji::START_TIME [clock add [clock seconds] [expr {int(rand() * 2 * $day)}] seconds]
+            expr {[morji::start_of_day] < $morji::START_TIME}
+        }
+        return 1
     } -result 1
 
     test scheduling-1 {scheduling} -setup {
@@ -395,7 +403,9 @@ namespace eval morji::test {
                 set morji::START_TIME [clock add $morji::START_TIME 1 day]
                 set cards [morji::get_today_cards]
                 lappend cards {*}[morji::get_forgotten_cards]
+                set count 0
                 foreach uid $cards {
+                    incr count
                     set r [expr {rand()}]
                     set reps_before [db onecolumn {SELECT reps FROM cards WHERE uid=$uid}]
                     if {$r < 0.03} {
@@ -415,32 +425,27 @@ namespace eval morji::test {
                     } elseif {$reps_after != $reps_before + 1} {
                             return "bad reps: $reps_before -> $reps_after"
                     }
-                    db eval {SELECT last_rep, next_rep, reps, easyness FROM cards WHERE uid=$uid} {
+                    db eval {SELECT last_rep, next_rep, reps, easyness, fact_data FROM cards WHERE uid=$uid} {
                         set new_interval($uid) [expr {$next_rep-$last_rep}] 
                         if {$new_interval($uid) == $interval($uid)} {
                             break
                         }
                         set new_interval_days [expr {double($new_interval($uid))/$day}]
                         set interval_days [expr {double($interval($uid))/$day}]
-                        # i' = i * easyness
-                        # i'' = i' + x (x = i' * 1+-0.05 i' or 1-3 days)
-                        #   i'' / 1.05 < i * easyness
-                        #   i''(1 - 3 days / i'') < i * easyness
-                        #   i'' / 0.95 > i * easyness
-                        #   i''(1 + 3 days / i'') > i * easyness
-                        set max_interval [expr {min($new_interval($uid)/1.05, $new_interval($uid)-3*$day)}]
-                        set ratio_max [expr {double($max_interval)/$interval($uid)}]
-                        set min_interval [expr {max($new_interval($uid)/0.95, $new_interval($uid)+3*$day)}]
-                        set ratio_min [expr {double($min_interval)/$interval($uid)}]
-                        if {$interval($uid) > 0 && $reps > 2 && $new_interval_days >= 12 && !($ratio_max < $easyness+0.1)} {
-                            return "bad interval: $easyness $reps $new_interval_days/$interval_days $ratio_max (too large)"
+                        set adjusted_max_interval [expr {(($interval($uid)+1*$day)*$easyness)}]
+                        set max_interval [expr {$adjusted_max_interval+max($adjusted_max_interval*$easyness*0.05,4*$day)}]
+                        set max_interval_days [expr {double($max_interval)/$day}]
+                        set min_interval [expr {($interval($uid)*$easyness)-max($interval($uid)*$easyness*0.05,3*$day)}]
+                        set min_interval_days [expr {double($max_interval)/$day}]
+                        if {$interval($uid) > 0 && $reps > 2 && $new_interval_days >= 12 && !($new_interval($uid) <= $max_interval)} {
+                            return "bad interval: $easyness $reps $new_interval_days/$interval_days $max_interval_days (too large)"
                         }
                         if {$interval($uid) > 0 && $reps > 2 && $new_interval($uid) < 12 * $day &&
                                 abs($new_interval($uid) - $interval($uid) - 6 * $day) > 3 * $day} {
                             return "bad interval: $new_interval_days-$interval_days-6 days (expected <= 3 days)"
                         }
-                        if {$interval($uid) > 0 && $reps > 2 && $new_interval_days >= 12 && !($ratio_min > $easyness-0.1)} {
-                            return "bad interval: $easyness $reps $new_interval_days/$interval_days $ratio_min (too little)"
+                        if {$interval($uid) > 0 && $reps > 2 && $new_interval_days >= 12 && !($new_interval($uid) > $min_interval)} {
+                            return "bad interval: $easyness $reps $new_interval_days/$interval_days $min_interval_days (too little)"
                         }
                         if {$interval($uid) > 0 && $reps == 2 && $interval($uid) < 5 && ($new_interval_days < 4 || $new_interval_days > 8)} {
                             return "bad interval: $new_interval_days (expected >= 4 and <= 8)"

@@ -382,6 +382,10 @@ proc morji::schedule_card {uid grade} {
         set new_next_rep $next_rep
         set reps 0
     }
+    #set day 86400
+    #if {$next_rep ne "" && $reps > 0 && $new_last_rep - $next_rep > 1 * $day} {
+    #    puts stderr "[expr {double($new_last_rep)/$day}] vs [expr {double($next_rep)/$day}]"
+    #}
     switch $reps {
         0 { }
         1 { 
@@ -407,12 +411,18 @@ proc morji::schedule_card {uid grade} {
         }
     }
     if {$reps > 0} {
-        #set interval [expr {$last_rep eq "" ? 0 : $new_next_rep-$new_last_rep}]
-        #set new_next_rep [
-        #    clock add $new_next_rep [interval_noise $interval] days
-        #]
+        if {![info exists interval]} {
+            set interval [expr {$last_rep eq "" ? 0 : $new_next_rep-$new_last_rep}]
+        }
+        set new_next_rep [
+            clock add $new_next_rep [interval_noise $interval] days
+        ]
     }
-    while {[db exists {SELECT 1 FROM cards WHERE fact_uid=$fact_uid AND uid!=$uid AND abs(next_rep-$new_next_rep) < 86400}]} {
+    while {[db exists {
+                SELECT 1 FROM cards
+                WHERE fact_uid=$fact_uid AND uid!=$uid
+                AND date(next_rep,'unixepoch') = date($new_next_rep, 'unixepoch')}]
+        } {
         # avoid putting sister cards on the same day
         set new_next_rep [clock add $new_next_rep 1 day]
     }
@@ -919,10 +929,9 @@ proc morji::put_stats {key value} {
 }
 
 proc morji::show_cards_scheduled_next_week {} {
-    set i 0
     set counts {}
     set after [clock add [start_of_day] 1 day]
-    while {$i < 7} {
+    for {set i 0} {$i < 7} {incr i} {
         set before $after
         set after [clock add $after 1 day]
         set scheduled [db eval [substcmd {
@@ -933,7 +942,6 @@ proc morji::show_cards_scheduled_next_week {} {
             AND [get_cards_where_tag_clause]
         }]]
         lappend counts $scheduled
-        incr i
     }
     put_stats "Cards scheduled for next days" $counts
 }
