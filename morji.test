@@ -50,7 +50,7 @@ namespace eval morji::test {
             return "no card"
         }
         db eval {SELECT * FROM cards WHERE fact_uid=$uid} {
-            foreach {field value} [list last_rep {} next_rep {} easyness 2.5 reps 0 fact_data {}] {
+            foreach {field value} [list last_rep {} next_rep {} easiness 2.5 reps 0 fact_data {}] {
                 if {[set $field] ne $value} {
                     return "bad $field: [set $field] (expected $value)"
                 }
@@ -81,7 +81,7 @@ namespace eval morji::test {
         }
         set data R
         db eval {SELECT * FROM cards WHERE fact_uid=$uid} {
-            foreach {field value} [list last_rep {} next_rep {} easyness 2.5 reps 0 fact_data $data] {
+            foreach {field value} [list last_rep {} next_rep {} easiness 2.5 reps 0 fact_data $data] {
                 if {[set $field] ne $value} {
                     return "bad $field: [set $field] (expected $value)"
                 }
@@ -109,7 +109,7 @@ namespace eval morji::test {
         set data {{0 a b} {1 c d} {2 e f}}
         set i 0
         db eval {SELECT * FROM cards WHERE fact_uid=$uid} {
-            foreach {field value} [list last_rep {} next_rep {} easyness 2.5 reps 0 fact_data [lindex $data $i]] {
+            foreach {field value} [list last_rep {} next_rep {} easiness 2.5 reps 0 fact_data [lindex $data $i]] {
                 if {[set $field] ne $value} {
                     return "bad $field: [set $field] (expected $value)"
                 }
@@ -282,7 +282,7 @@ namespace eval morji::test {
                 }
                 set data $expected
                 db eval {SELECT * FROM cards WHERE fact_uid=$test_uid} {
-                    foreach {field value} [list last_rep {} next_rep {} easyness 2.5 reps 0] {
+                    foreach {field value} [list last_rep {} next_rep {} easiness 2.5 reps 0] {
                         if {[set $field] ne $value} {
                             return "bad $field for card $uid: [set $field] (expected $value)"
                         }
@@ -425,27 +425,27 @@ namespace eval morji::test {
                     } elseif {$reps_after != $reps_before + 1} {
                             return "bad reps: $reps_before -> $reps_after"
                     }
-                    db eval {SELECT last_rep, next_rep, reps, easyness, fact_data FROM cards WHERE uid=$uid} {
+                    db eval {SELECT last_rep, next_rep, reps, easiness, fact_data FROM cards WHERE uid=$uid} {
                         set new_interval($uid) [expr {$next_rep-$last_rep}] 
                         if {$new_interval($uid) == $interval($uid)} {
                             break
                         }
                         set new_interval_days [expr {double($new_interval($uid))/$day}]
                         set interval_days [expr {double($interval($uid))/$day}]
-                        set adjusted_max_interval [expr {(($interval($uid)+1*$day)*$easyness)}]
-                        set max_interval [expr {$adjusted_max_interval+max($adjusted_max_interval*$easyness*0.05,4*$day)}]
+                        set adjusted_max_interval [expr {(($interval($uid)+1*$day)*$easiness)}]
+                        set max_interval [expr {$adjusted_max_interval+max($adjusted_max_interval*$easiness*0.05,4*$day)}]
                         set max_interval_days [expr {double($max_interval)/$day}]
-                        set min_interval [expr {($interval($uid)*$easyness)-max($interval($uid)*$easyness*0.05,3*$day)}]
+                        set min_interval [expr {($interval($uid)*$easiness)-max($interval($uid)*$easiness*0.05,3*$day)}]
                         set min_interval_days [expr {double($max_interval)/$day}]
                         if {$interval($uid) > 0 && $reps > 2 && $new_interval_days >= 12 && !($new_interval($uid) <= $max_interval)} {
-                            return "bad interval: $easyness $reps $new_interval_days/$interval_days $max_interval_days (too large)"
+                            return "bad interval: $easiness $reps $new_interval_days/$interval_days $max_interval_days (too large)"
                         }
                         if {$interval($uid) > 0 && $reps > 2 && $new_interval($uid) < 12 * $day &&
                                 abs($new_interval($uid) - $interval($uid) - 6 * $day) > 3 * $day} {
                             return "bad interval: $new_interval_days-$interval_days-6 days (expected <= 3 days)"
                         }
                         if {$interval($uid) > 0 && $reps > 2 && $new_interval_days >= 12 && !($new_interval($uid) > $min_interval)} {
-                            return "bad interval: $easyness $reps $new_interval_days/$interval_days $min_interval_days (too little)"
+                            return "bad interval: $easiness $reps $new_interval_days/$interval_days $min_interval_days (too little)"
                         }
                         if {$interval($uid) > 0 && $reps == 2 && $interval($uid) < 5 && ($new_interval_days < 4 || $new_interval_days > 8)} {
                             return "bad interval: $new_interval_days (expected >= 4 and <= 8)"

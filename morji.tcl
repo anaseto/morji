@@ -36,7 +36,7 @@ proc morji::init_state {{dbfile :memory:}} {
             last_rep INTEGER,
             -- next repetition time (null for new cards)
             next_rep INTEGER CHECK(next_rep ISNULL OR last_rep < next_rep),
-            easyness REAL NOT NULL DEFAULT 2.5 CHECK(easyness > 1.29),
+            easiness REAL NOT NULL DEFAULT 2.5 CHECK(easiness > 1.29),
             -- number of repetitions (0 for new and forgotten cards)
             reps INTEGER NOT NULL,
             fact_uid INTEGER NOT NULL REFERENCES facts ON DELETE CASCADE,
@@ -353,7 +353,7 @@ proc morji::deselect_tags {pattern} {
 
 proc morji::schedule_card {uid grade} {
     variable START_TIME
-    db eval {SELECT last_rep, next_rep, easyness, reps, fact_uid FROM cards WHERE uid=$uid} break
+    db eval {SELECT last_rep, next_rep, easiness, reps, fact_uid FROM cards WHERE uid=$uid} break
     if {![info exists reps]} {
         error "internal error: schedule_card: card does not exist: $uid"
     }
@@ -367,11 +367,11 @@ proc morji::schedule_card {uid grade} {
         set grade good
     }
     switch $grade {
-        hard { set easyness [expr {$easyness - 0.15}] }
-        easy { set easyness [expr {$easyness + 0.1}] }
+        hard { set easiness [expr {$easiness - 0.15}] }
+        easy { set easiness [expr {$easiness + 0.1}] }
     }
-    if {$easyness < 1.3} {
-        set easyness 1.3
+    if {$easiness < 1.3} {
+        set easiness 1.3
     }
     if {$grade ne "again"} {
         set new_last_rep $START_TIME
@@ -402,7 +402,7 @@ proc morji::schedule_card {uid grade} {
             }
         }
         default {
-            set interval [expr {int(($new_last_rep-$last_rep)*$easyness)}]
+            set interval [expr {int(($new_last_rep-$last_rep)*$easiness)}]
             set new_next_rep [clock add $new_next_rep $interval seconds]
         }
     }
@@ -424,7 +424,7 @@ proc morji::schedule_card {uid grade} {
     }
     db eval {
         UPDATE cards
-        SET last_rep=$new_last_rep, next_rep=$new_next_rep, easyness=$easyness, reps=$reps
+        SET last_rep=$new_last_rep, next_rep=$new_next_rep, easiness=$easiness, reps=$reps
         WHERE uid=$uid
     }
     return "scheduled"
