@@ -334,11 +334,11 @@ proc morji::get_card_tags {uid} {
 ######################### tag functions ################ 
 
 proc morji::get_active_tags {} {
-    return [db eval {SELECT name FROM tags WHERE active = 1}]
+    return [db eval {SELECT name FROM tags WHERE active = 1 ORDER BY name}]
 }
 
 proc morji::get_inactive_tags {} {
-    return [db eval {SELECT name FROM tags WHERE active = 0}]
+    return [db eval {SELECT name FROM tags WHERE active = 0 ORDER BY name}]
 }
 
 proc morji::select_tags {pattern} {
