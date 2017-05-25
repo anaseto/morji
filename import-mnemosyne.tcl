@@ -36,8 +36,6 @@ proc do_twoside {tag_pattern} {
             SELECT question, answer, tags, next_rep, last_rep, ret_reps_since_lapse, easiness
             FROM cards WHERE _fact_id = $fact_id
         } break
-        # TODO: split answer and notes.
-        # TODO: Remove html tags.
         lassign [split $answer "\n"] answer notes
         if {[regexp {rafsi} $answer]} {
             puts stderr "$question@@@$notes@@@$answer"
@@ -85,8 +83,6 @@ proc do_oneside {tag_pattern} {
             SELECT question, answer, tags, next_rep, last_rep, ret_reps_since_lapse, easiness
             FROM cards WHERE _fact_id = $fact_id
         } break
-        # TODO: split answer and notes.
-        # TODO: Remove html tags.
         set question [clean_text $question $tag_pattern]
         set answer [clean_text $answer $tag_pattern]
         db eval {INSERT INTO facts(question, answer, notes, type) VALUES($question, $answer, '', 'oneside')}
