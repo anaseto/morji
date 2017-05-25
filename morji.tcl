@@ -80,17 +80,11 @@ proc morji::add_fact {question answer notes type {tags {}}} {
     set fact_uid [db last_insert_rowid]
     switch $type {
         oneside {
-            db eval {
-                INSERT INTO cards(reps, fact_uid, fact_data)
-                VALUES(0, $fact_uid, "")
-            }
+            add_card $fact_uid
         }
         twoside {
             foreach fact_data {R P} {
-                db eval {
-                    INSERT INTO cards(reps, fact_uid, fact_data)
-                    VALUES(0, $fact_uid, $fact_data)
-                }
+                add_card $fact_uid $fact_data
             }
         }
         cloze {
@@ -99,10 +93,7 @@ proc morji::add_fact {question answer notes type {tags {}}} {
                 set cmd [string range $elt 1 end-1]
                 check_cloze_cmd $cmd
                 set fact_data [list $i {*}[lrange $cmd 1 end]]
-                db eval {
-                    INSERT INTO cards(reps, fact_uid, fact_data)
-                    VALUES(0, $fact_uid, $fact_data)
-                }
+                add_card $fact_uid $fact_data
                 incr i
             }
         }
@@ -121,6 +112,13 @@ proc morji::add_fact {question answer notes type {tags {}}} {
     return $fact_uid
 }
 
+proc morji::add_card {fact_uid {fact_data {}}} {
+    db eval {
+        INSERT INTO cards(reps, fact_uid, fact_data)
+        VALUES(0, $fact_uid, $fact_data)
+    }
+}
+
 proc morji::update_fact {fact_uid question answer notes type tags} {
     set otype [db eval {SELECT type FROM facts WHERE uid=$fact_uid}]
     if {$otype ni {oneside twoside cloze}} {
@@ -130,7 +128,7 @@ proc morji::update_fact {fact_uid question answer notes type tags} {
     if {($otype eq "oneside") && ($type eq "twoside")} {
         db eval {UPDATE cards SET fact_data = 'R' WHERE fact_uid = $fact_uid}
         db eval {UPDATE facts SET type=$type WHERE uid=$fact_uid}
-        db eval {INSERT INTO cards(reps, fact_uid, fact_data) VALUES(0, $fact_uid, 'P')}
+        add_card $fact_uid "P"
     } elseif {($otype eq "twoside") && ($type eq "oneside")} {
         db eval {DELETE FROM cards WHERE fact_uid=$fact_uid AND fact_data = 'P'}
         db eval {UPDATE facts SET type=$type WHERE uid=$fact_uid}
@@ -179,10 +177,7 @@ proc morji::update_cloze_fact {fact_uid question} {
     foreach ncloze $nclozes {
         set found [lsearch -exact $oclozes_first [lindex $ncloze 1]]
         if {$found == -1} {
-            db eval {
-                INSERT INTO cards(reps, fact_uid, fact_data)
-                VALUES(0, $fact_uid, $ncloze)
-            }
+            add_card $fact_uid $ncloze
         }
     }
 }
@@ -979,7 +974,7 @@ proc morji::put_screen_start {} {
     puts "Type ? for help."
 }
 
-proc morji::action_with_context {script} {
+proc morji::within_transaction {script} {
     set ret ""
     try {
         set ret [db transaction {uplevel $script}]
@@ -1013,7 +1008,7 @@ proc morji::run {} {
             set FIRST_ACTION_FOR_CARD 1
             set ANSWER_ALREADY_SEEN 0
             while {$ret ne "scheduled"} {
-                set ret [action_with_context {card_prompt $card}]
+                set ret [within_transaction {card_prompt $card}]
                 set FIRST_ACTION_FOR_CARD 0
                 switch $ret {
                     quit { quit }
@@ -1033,7 +1028,7 @@ proc morji::run {} {
         put_info "No cards to review nor new cards"
         set ret ""
         while {1} {
-            set ret [action_with_context {no_card_prompt}]
+            set ret [within_transaction {no_card_prompt}]
             switch $ret {
                 quit { quit }
                 restart { tailcall run }
