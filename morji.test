@@ -15,13 +15,13 @@ namespace eval morji::test {
         return $morji::markup::CLOZE
     } -result 0
 
-    test init {state vars} -setup {
-        morji::init_state
-    } -body {
-        return "$morji::FIRST_ACTION_FOR_CARD $morji::ANSWER_ALREADY_SEEN"
-    } -cleanup {
-        db close
-    } -result {1 0}
+    #test init {state vars} -setup {
+        #morji::init_state
+    #} -body {
+        #return "$morji::FIRST_ACTION_FOR_CARD $morji::ANSWER_ALREADY_SEEN"
+    #} -cleanup {
+        #db close
+    #} -result {1 0}
 
     test tables {normal init} -setup {
         morji::init_state
@@ -555,11 +555,11 @@ namespace eval morji::test {
 
     test put_bracket-1 {put bracket} -body {
         morji::markup::lbracket
-    } -output {[}
+    } -result {[}
 
     test put_bracket-2 {put bracket} -body {
         morji::markup::rbracket
-    } -output {]}
+    } -result {]}
 
     proc bold {text} {
         return "[::term::ansi::code::ctrl::sda_bold]$text[::term::ansi::code::ctrl::sda_nobold]"
@@ -568,22 +568,22 @@ namespace eval morji::test {
     test put_cloze-1 {put cloze} -body {
         set morji::markup::CLOZE 0
         morji::markup::cloze cloze hint
-    } -result -1 -output "[bold hint]"
+    } -result "[bold hint]"
 
     test put_cloze-2 {put cloze} -body {
         set morji::markup::CLOZE 0
         morji::markup::cloze cloze
-    } -result -1 -output "[bold \[…\]]"
+    } -result "[bold \[…\]]"
 
     test put_cloze-3 {put cloze} -body {
         set morji::markup::CLOZE -42
         morji::markup::cloze cloze hint
-    } -result -43 -output "\[cloze cloze [bold hint]\]"
+    } -result "\[cloze cloze [bold hint]\]"
 
     test put_cloze-4 {put cloze} -body {
         set morji::markup::CLOZE 1
         morji::markup::cloze cloze hint
-    } -result 0 -output "cloze"
+    } -result "cloze"
 
     test show_fact-1 {show fact} -setup {
         morji::init_state

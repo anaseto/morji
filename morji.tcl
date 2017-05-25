@@ -1,6 +1,7 @@
 package require sqlite3
 package require term::ansi::ctrl::unix
 package require term::ansi::send
+package require term::ansi::code::ctrl
 package require textutil
 
 # TODO: backups, more tests, recuperar db mnemosyne
@@ -24,9 +25,8 @@ namespace eval morji {
 
 
 proc morji::init_state {{dbfile :memory:}} {
-    variables START_TIME FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN
+    variables START_TIME
     sqlite3 db $dbfile
-    #sqlite3 db /tmp/morji_test.db
 
     db eval {
         PRAGMA foreign_keys = ON;
@@ -71,8 +71,6 @@ proc morji::init_state {{dbfile :memory:}} {
     }
 
     set START_TIME [clock seconds]
-    set FIRST_ACTION_FOR_CARD 1
-    set ANSWER_ALREADY_SEEN 0
 }
 
 ######################### managing facts ################ 
@@ -202,6 +200,15 @@ proc check_cloze_cmd {cmd} {
     }
 }
 
+proc add_tag_for_fact {fact_uid tag} {
+    set uid [db onecolumn {SELECT uid FROM tags WHERE name=$tag}]
+    if {$uid eq ""} {
+        db eval {INSERT INTO tags(name) VALUES($tag)}
+        set uid [db last_insert_rowid]
+    }
+    db eval {INSERT INTO fact_tags VALUES($fact_uid, $uid)}
+}
+
 proc morji::update_tags_for_fact {fact_uid tags} {
     set otags [db eval {
         SELECT name FROM tags
@@ -213,12 +220,7 @@ proc morji::update_tags_for_fact {fact_uid tags} {
             continue
         }
         if {!($tag in $otags)} {
-            set uid [db onecolumn {SELECT uid FROM tags WHERE name=$tag}]
-            if {$uid eq ""} {
-                db eval {INSERT INTO tags(name) VALUES($tag)}
-                set uid [db last_insert_rowid]
-            }
-            db eval {INSERT INTO fact_tags VALUES($fact_uid, $uid)}
+            add_tag_for_fact $fact_uid $tag
         }
     }
     # removed tags 
@@ -554,50 +556,43 @@ proc morji::put_header {title {color yellow}} {
 
 proc morji::put_text {text} {
     set elts [textutil::splitx $text {(\[[^\]]*\])}]
+    set buf {}
     foreach elt $elts {
         if {[regexp {^\[.*\]$} $elt]} {
             set cmd [string range $elt 1 end-1]
             set cmdname [lindex $cmd 0]
             set args [lrange $cmd 1 end]
             try {
-                morji::markup::$cmdname {*}$args
+                lappend buf [morji::markup::$cmdname {*}$args]
             } on error {msg} {
-                with_color red {
-                    puts -nonewline \[$msg\]
-                }
+                lappend buf [colored red \[$msg\]]
             }
         } else {
-            puts -nonewline $elt
+            lappend buf $elt
         }
     }
-    puts ""
+    # XXX: length is buggy because of ansi escape sequences
+    puts [textutil::adjust [join $buf ""] -length 90]
 }
 
 proc morji::markup::em {args} {
-    morji::with_style bold {
-        puts -nonewline [join $args]
-    }
+    return [morji::styled bold [join $args]]
 }
 
 proc morji::markup::cloze {cloze {hint {[…]}}} {
     if {$morji::markup::CLOZE == 0} {
-        morji::with_style bold {
-            puts -nonewline $hint
-        }
+        set ret [morji::styled bold $hint]
     } elseif {$morji::markup::CLOZE <= -42} {
-        puts -nonewline "\[cloze $cloze "
-        morji::with_style bold {
-            puts -nonewline $hint
-        }
-        puts -nonewline "\]"
+        set ret "\[cloze $cloze [morji::styled bold $hint]\]"
     } else {
-        puts -nonewline $cloze
+        set ret $cloze
     }
     incr morji::markup::CLOZE -1
+    return $ret
 }
 
 foreach {n s} {lbracket \[ rbracket \]} {
-    proc morji::markup::$n {} [list puts -nonewline $s]
+    proc morji::markup::$n {} [list return $s]
 }
 
 proc morji::put_question {question answer type fact_data} {
@@ -799,6 +794,14 @@ proc morji::with_color {color script} {
     } finally {
         send::sda_fgdefault
     }
+}
+
+proc morji::colored {color text} {
+    return "[::term::ansi::code::ctrl::sda_fg$color]$text[::term::ansi::code::ctrl::sda_fgdefault]"
+}
+
+proc morji::styled {style text} {
+    return "[::term::ansi::code::ctrl::sda_$style]$text[::term::ansi::code::ctrl::sda_no$style]"
 }
 
 proc morji::with_style {style script} {
@@ -1055,9 +1058,9 @@ proc morji::quit {} {
     exit
 }
 
-proc morji::init {} {
+proc morji::init {{dbfile :memory:}} {
     try {
-        init_state
+        init_state $dbfile
     } on error {msg} {
         with_color red {
             puts stderr "Error initializing database: $msg"
