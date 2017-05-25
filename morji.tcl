@@ -572,12 +572,16 @@ proc morji::put_text {text} {
         }
     }
     # XXX: length is buggy because of ansi escape sequences
-    puts [textutil::adjust [join $buf ""] -length 90]
+    puts [textutil::adjust [join $buf ""] -length 85]
 }
 
-proc morji::markup::em {args} {
-    return [morji::styled bold [join $args]]
+proc morji::define_markup {name type arg} {
+    proc ::morji::markup::$name {args} [
+        string cat "return \[morji::$type $arg " {[join $args]} "\]"
+    ]
 }
+
+morji::define_markup em styled bold
 
 proc morji::markup::cloze {cloze {hint {[…]}}} {
     if {$morji::markup::CLOZE == 0} {

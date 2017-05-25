@@ -100,6 +100,7 @@ proc do_oneside {tag_pattern} {
         }
         switch $tag_pattern {
             lojban { add_tag_for_fact $new_fact_uid lojban-sentence }
+            lojban-cll { add_tag_for_fact $new_fact_uid lojban-cll }
             *vorto* { add_tag_for_fact $new_fact_uid vorto }
             *Mc* { add_tag_for_fact $new_fact_uid idioms }
             *euskara* { add_tag_for_fact $new_fact_uid euskara }
@@ -107,33 +108,13 @@ proc do_oneside {tag_pattern} {
     }
 }
 
-proc morji::markup::sep {args} {
-    return [morji::colored magenta [join $args]]
-}
-
-proc morji::markup::link {args} {
-    return [morji::colored blue [join $args]]
-}
-
-proc morji::markup::example {args} {
-    return [morji::styled italic [join $args]]
-}
-
-proc morji::markup::var {args} {
-    return [morji::styled italic [join $args]]
-}
-
-proc morji::markup::rafsi {args} {
-    return [morji::styled italic [join $args]]
-}
-
-proc morji::markup::paren {args} {
-    return [morji::colored cyan [join $args]]
-}
-
-proc morji::markup::type {args} {
-    return [morji::colored cyan [join $args]]
-}
+morji::define_markup sep colored magenta
+morji::define_markup link colored blue
+morji::define_markup example styled italic
+morji::define_markup var styled italic
+morji::define_markup rafsi styled italic
+morji::define_markup paren colored cyan
+morji::define_markup type colored cyan
 
 proc clean_text {text pattern} {
     regsub -all {\[} $text {(} text
@@ -204,7 +185,7 @@ db transaction {
     do_oneside {*euskara*}
     do_oneside {lojban}
     do_oneside {lojban-cll}
-    #do_oneside {*vorto*}
+    #do_oneside {*vortoj}
     do_oneside {*Mc*}
 }
 set morji::TEST 0
