@@ -49,7 +49,8 @@ proc morji::init_state {{dbfile :memory:}} {
             name TEXT UNIQUE NOT NULL,
             active INTEGER NOT NULL DEFAULT 1
         );
-        CREATE INDEX IF NOT EXISTS tags_idx ON tags(name);
+        CREATE INDEX IF NOT EXISTS tags_idx1 ON tags(name);
+        CREATE INDEX IF NOT EXISTS tags_idx2 ON tags(active);
         CREATE TABLE IF NOT EXISTS fact_tags(
             fact_uid INTEGER NOT NULL REFERENCES facts ON DELETE CASCADE,
             tag_uid INTEGER NOT NULL REFERENCES tags ON DELETE CASCADE
