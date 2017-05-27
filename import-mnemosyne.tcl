@@ -5,6 +5,7 @@ namespace eval morji {
 source -encoding utf-8 morji.tcl
 
 sqlite3 mnemodb ~/basura/default.db -readonly true
+morji::read_config
 morji::init_state
 
 proc schema {} {
@@ -118,13 +119,13 @@ proc do_oneside {tag_pattern} {
 
 db eval {INSERT INTO tags(name) VALUES('all')}
 
-morji::config::define_markup sep colored magenta
-morji::config::define_markup link colored blue
-morji::config::define_markup example styled italic
-morji::config::define_markup var styled italic
-morji::config::define_markup rafsi styled italic
-morji::config::define_markup paren colored cyan
-morji::config::define_markup type colored cyan
+#morji::config::markup sep colored magenta
+#morji::config::markup link colored blue
+#morji::config::markup example styled italic
+#morji::config::markup var styled italic
+#morji::config::markup rafsi styled italic
+#morji::config::markup paren colored cyan
+#morji::config::markup type colored cyan
 
 proc clean_text {text pattern} {
     regsub -all {\[} $text {(} text

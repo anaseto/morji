@@ -573,13 +573,13 @@ proc morji::put_text {text} {
     puts [textutil::adjust [join $buf ""] -length 85]
 }
 
-proc morji::config::define_markup {name type arg} {
+proc morji::config::markup {name type arg} {
     proc ::morji::markup::$name {args} [
         string cat "return \[morji::$type $arg " {[join $args]} "\]"
     ]
 }
 
-morji::config::define_markup em styled bold
+morji::config::markup em styled bold
 
 proc morji::markup::cloze {cloze {hint {[…]}}} {
     if {$morji::markup::CLOZE == 0} {
@@ -1074,8 +1074,32 @@ proc morji::init {{dbfile :memory:}} {
     }
 }
 
+proc morji::read_config {} {
+    if {[info exists ::env(XDG_CONFIG_HOME)]} {
+        set config_dir $::env(XDG_CONFIG_HOME)/morji
+    } else {
+        set config_dir ~/.config/morji
+    }
+    if {![file exists $config_dir] || ![file exists $config_dir/init.tcl]} {
+        file mkdir $config_dir
+        set fh [open $config_dir/init.tcl w]
+        puts $fh {# morji configuration file
+#markup word colored blue
+}
+        close $fh
+    }
+    namespace eval config source $config_dir/init.tcl
+}
+
 if {!([info exists morji::TEST] && $morji::TEST)} {
     set morji::TEST 0
+    try {
+        morji::read_config
+    } on error {msg} {
+        with_color red {
+            puts stderr "Error reading configuration file: $msg"
+        }
+    }
     morji::init
     morji::main
 }
