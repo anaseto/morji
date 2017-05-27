@@ -561,7 +561,12 @@ proc morji::put_text {text} {
             set cmdname [lindex $cmd 0]
             set args [lrange $cmd 1 end]
             try {
-                lappend buf [morji::markup::$cmdname {*}$args]
+                if {[namespace which -command morji::markup::$cmdname] ne ""} {
+                    lappend buf [morji::markup::$cmdname {*}$args]
+                } else {
+                    warn "unknown markup tag: $cmdname"
+                    lappend buf [colored red "\[$cmdname $args\]"]
+                }
             } on error {msg} {
                 lappend buf [colored red \[$msg\]]
             }
@@ -574,6 +579,17 @@ proc morji::put_text {text} {
 }
 
 proc morji::config::markup {name type arg} {
+    if {$type ni {styled colored}} {
+        error "markup $name: bad type: $type (should be \"styled\" or \"colored\")"
+    }
+    set styles {bold dim italic underline blink revers hidden strike}
+    if {$type eq "styled" && $arg ni $styles} {
+        error "markup $name: bad style: $arg (should be one of $styles)"
+    }
+    set colors {black red green yellow blue magenta cyan white default}
+    if {$type eq "colored" && $arg ni $colors} {
+        error "markup $name: bad color: $arg (should be one of $colors)"
+    }
     proc ::morji::markup::$name {args} [
         string cat "return \[morji::$type $arg " {[join $args]} "\]"
     ]
@@ -773,19 +789,19 @@ proc morji::ask_for_initial_grade {fact_uid} {
         Q { quit }
     }
     with_color red {
-        puts stderr "Error: invalid key: $key (type ? for help)"
+        puts "Error: invalid key: $key (type ? for help)"
     }
 }
 
 proc morji::warn {msg} {
     with_color red {
-        puts stderr "Warning: $msg"
+        puts "Warning: $msg"
     }
 }
 
 proc morji::put_info {msg} {
     with_color cyan {
-        puts stderr "Info: $msg"
+        puts "Info: $msg"
     }
 }
 
@@ -835,7 +851,7 @@ proc morji::prompt_confirmation {prompt} {
             }
             default {
                 with_color red {
-                    puts stderr "Error: invalid key: $key (type ? for help)"
+                    puts "Error: invalid key: $key (type ? for help)"
                 }
             }
         }
@@ -987,7 +1003,7 @@ proc morji::within_transaction {script} {
         }
     } on error {msg} {
         with_color red {
-            puts stderr "Error: $msg"
+            puts "Error: $msg"
         }
     } finally {
         return $ret
@@ -1046,7 +1062,7 @@ proc morji::main {} {
         run
     } on error {result} {
         with_color red {
-            puts stderr "Fatal Error: $result"
+            puts "Fatal Error: $result"
         }
         set ret 1
     } finally {
@@ -1060,21 +1076,7 @@ proc morji::quit {} {
     exit
 }
 
-proc morji::init {{dbfile :memory:}} {
-    try {
-        init_state $dbfile
-    } on error {msg} {
-        with_color red {
-            puts stderr "Error initializing database: $msg"
-        }
-        if {[namespace which db] ne ""} {
-            db close
-        }
-        exit 1
-    }
-}
-
-proc morji::read_config {} {
+proc morji::read_init_config_or_create_new {} {
     if {[info exists ::env(XDG_CONFIG_HOME)]} {
         set config_dir $::env(XDG_CONFIG_HOME)/morji
     } else {
@@ -1091,15 +1093,36 @@ proc morji::read_config {} {
     namespace eval config source $config_dir/init.tcl
 }
 
+
+proc morji::process_config {} {
+    try {
+        read_init_config_or_create_new
+    } on error {msg more} {
+        with_color red {
+            puts "Error reading configuration file. Details:"
+        }
+        puts [dict get $more -errorinfo]
+        exit 1
+    }
+}
+
+proc morji::init {{dbfile :memory:}} {
+    try {
+        init_state $dbfile
+    } on error {msg} {
+        with_color red {
+            puts "Error initializing database: $msg"
+        }
+        if {[namespace which -command db] ne ""} {
+            db close
+        }
+        exit 1
+    }
+}
+
 if {!([info exists morji::TEST] && $morji::TEST)} {
     set morji::TEST 0
-    try {
-        morji::read_config
-    } on error {msg} {
-        morji::with_color red {
-            puts stderr "Error reading configuration file: $msg"
-        }
-    }
+    morji::process_config
     morji::init
     morji::main
 }

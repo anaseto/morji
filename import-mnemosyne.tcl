@@ -5,8 +5,8 @@ namespace eval morji {
 source -encoding utf-8 morji.tcl
 
 sqlite3 mnemodb ~/basura/default.db -readonly true
-morji::read_config
-morji::init_state
+morji::process_config
+morji::init
 
 proc schema {} {
     foreach table [mnemodb eval {SELECT sql FROM sqlite_master WHERE type='table' ORDER BY name}] {
