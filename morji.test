@@ -483,7 +483,7 @@ namespace eval morji::test {
         return ok
     } -result ok
 
-    test scheduling-3 {scheduling: interval noise} -body {
+    test scheduling-4 {scheduling: interval noise} -body {
         set day 86400
         for {set i 21} {$i <= 60} {incr i} {
             set noise [morji::interval_noise [expr {$i * $day}]]
@@ -494,7 +494,7 @@ namespace eval morji::test {
         return ok
     } -result ok
 
-    test scheduling-4 {scheduling: interval noise} -body {
+    test scheduling-5 {scheduling: interval noise} -body {
         set day 86400
         for {set i 61} {$i <= 100} {incr i} {
             set noise [morji::interval_noise [expr {$i * $day}]]
