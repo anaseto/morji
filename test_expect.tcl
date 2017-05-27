@@ -12,6 +12,7 @@ set env(EDITOR) ./test_editor.tcl
 
 log_user $log
 spawn tclsh8.6 morji.tcl :memory:
+expect {No cards to review}
 expect {>>}
 send ?
 expect {quit program}
@@ -38,6 +39,7 @@ expect Keys
 ok new_card_help
 expect {>>}
 send a
+expect {Memorize 1 new card}
 expect {>>}
 ok again
 send q
