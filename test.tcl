@@ -21,6 +21,7 @@ proc morji::test_go_to_next_day {} {
 
 proc morji::interactive_test {} {
     variable START_TIME
+    process_config
     init
     db transaction {
         for {set i 0} {$i < 1} {incr i} {
