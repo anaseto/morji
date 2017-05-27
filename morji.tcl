@@ -21,6 +21,8 @@ namespace eval morji {
         # index of current card's cloze
         variable CLOZE 0
     }
+
+    namespace eval config {}
 }
 
 
@@ -571,13 +573,13 @@ proc morji::put_text {text} {
     puts [textutil::adjust [join $buf ""] -length 85]
 }
 
-proc morji::define_markup {name type arg} {
+proc morji::config::define_markup {name type arg} {
     proc ::morji::markup::$name {args} [
         string cat "return \[morji::$type $arg " {[join $args]} "\]"
     ]
 }
 
-morji::define_markup em styled bold
+morji::config::define_markup em styled bold
 
 proc morji::markup::cloze {cloze {hint {[…]}}} {
     if {$morji::markup::CLOZE == 0} {

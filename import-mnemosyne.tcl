@@ -19,6 +19,11 @@ proc print_table {table} {
     }
 }
 
+proc add_tag_all {fact_uid} {
+    set all_uid [db onecolumn {SELECT uid FROM tags WHERE name='all'}]
+    db eval {INSERT INTO fact_tags(fact_uid, tag_uid) VALUES($fact_uid, $all_uid)}
+}
+
 #print_table data_for_fact
 #print_table cards
 proc do_twoside {tag_pattern} {
@@ -33,21 +38,19 @@ proc do_twoside {tag_pattern} {
             error "bad number of cards for $fact_id"
         }
         mnemodb eval {
-            SELECT question, answer, tags, next_rep, last_rep, ret_reps_since_lapse, easiness
+            SELECT question, answer, tags, next_rep, last_rep, ret_reps_since_lapse, easiness, acq_reps_since_lapse
             FROM cards WHERE _fact_id = $fact_id
         } break
         lassign [split $answer "\n"] answer notes
         if {[regexp {rafsi} $answer]} {
-            puts stderr "$question@@@$notes@@@$answer"
-            puts $fact_id
+            error "$question@@@$notes@@@$answer"
         }
         set question [clean_text $question $tag_pattern]
         set answer [clean_text $answer $tag_pattern]
         set notes [clean_text $notes $tag_pattern]
         db eval {INSERT INTO facts(question, answer, notes, type) VALUES($question, $answer, $notes, 'twoside')}
         set new_fact_uid [db last_insert_rowid]
-        set all_uid [db onecolumn {SELECT uid FROM tags WHERE name='all'}]
-        db eval {INSERT INTO fact_tags(fact_uid, tag_uid) VALUES($new_fact_uid, $all_uid)}
+        add_tag_all $new_fact_uid
         set data R
         mnemodb eval {
             SELECT next_rep, last_rep, ret_reps_since_lapse, easiness
@@ -59,6 +62,10 @@ proc do_twoside {tag_pattern} {
                 if {$ret_reps_since_lapse > 0} {
                     error "bad reps: $ret_reps_since_lapse"
                 }
+            } elseif {$last_rep >= 0 && ($ret_reps_since_lapse > 0 || $acq_reps_since_lapse > 0)} {
+                incr ret_reps_since_lapse
+                incr next_rep 86400
+                incr last_rep 86400
             }
             db eval {
                 INSERT INTO cards(last_rep, next_rep, easiness, reps, fact_uid, fact_data)
@@ -66,12 +73,7 @@ proc do_twoside {tag_pattern} {
             }
             set data P
         }
-        switch $tag_pattern {
-            *tokipona* { add_tag_for_fact $new_fact_uid tokipona }
-            *lidep* { add_tag_for_fact $new_fact_uid lidepla }
-            *gismu* { add_tag_for_fact $new_fact_uid *gismu* }
-            *personaje* { add_tag_for_fact $new_fact_uid PAO }
-        }
+        add_tag_for_pattern $new_fact_uid $tag_pattern
     }
 }
 
@@ -94,43 +96,35 @@ proc do_oneside {tag_pattern} {
         set answer [clean_text $answer $tag_pattern]
         db eval {INSERT INTO facts(question, answer, notes, type) VALUES($question, $answer, '', 'oneside')}
         set new_fact_uid [db last_insert_rowid]
-        set all_uid [db onecolumn {SELECT uid FROM tags WHERE name='all'}]
-        db eval {INSERT INTO fact_tags(fact_uid, tag_uid) VALUES($new_fact_uid, $all_uid)}
+        add_tag_all $new_fact_uid
         if {$last_rep == -1} {
             unset next_rep
             unset last_rep
             if {$ret_reps_since_lapse > 0} {
                 error "bad reps: $ret_reps_since_lapse"
             }
-        } elseif {$last_rep > 0 && $ret_reps_since_lapse == 0} {
-            #puts "$acq_reps_since_lapse"
+        } elseif {$last_rep >= 0 && ($ret_reps_since_lapse > 0 || $acq_reps_since_lapse > 0)} {
+            incr ret_reps_since_lapse
+            incr next_rep 86400
+            incr last_rep 86400
         }
-        #if {$ret_reps_since_lapse != $acq_reps_since_lapse} {
-        #    puts "$acq_reps_since_lapse vs $ret_reps_since_lapse"
-        #}
         db eval {
             INSERT INTO cards(last_rep, next_rep, easiness, reps, fact_uid, fact_data)
             VALUES($last_rep, $next_rep, $easiness, $ret_reps_since_lapse, $new_fact_uid, '')
         }
-        switch $tag_pattern {
-            lojban { add_tag_for_fact $new_fact_uid lojban-sentence }
-            lojban-cll { add_tag_for_fact $new_fact_uid lojban-cll }
-            vortoj { add_tag_for_fact $new_fact_uid vorto }
-            *Mc* { add_tag_for_fact $new_fact_uid idioms }
-            *euskara* { add_tag_for_fact $new_fact_uid euskara }
-        }
+        add_tag_for_pattern $new_fact_uid $tag_pattern
     }
 }
 
 db eval {INSERT INTO tags(name) VALUES('all')}
 
-morji::define_markup sep colored magenta
-morji::define_markup link colored blue
-morji::define_markup example styled italic
-morji::define_markup var styled italic
-morji::define_markup rafsi styled italic
-morji::define_markup paren colored cyan
-morji::define_markup type colored cyan
+morji::config::define_markup sep colored magenta
+morji::config::define_markup link colored blue
+morji::config::define_markup example styled italic
+morji::config::define_markup var styled italic
+morji::config::define_markup rafsi styled italic
+morji::config::define_markup paren colored cyan
+morji::config::define_markup type colored cyan
 
 proc clean_text {text pattern} {
     regsub -all {\[} $text {(} text
@@ -169,6 +163,8 @@ proc clean_text {text pattern} {
     regsub -all {</(?:font|b|i)>} $text "\]" text
     regsub -all {<br>} $text "\n" text
     regsub -all " \\\]" $text "\] " text
+    regsub -all "\\\[(\\w+)  " $text { [\1 } text
+    regsub -all {"([^"]*)"} $text {“\1”} text
 
     #if {[regexp {<\w+>} $text]} {
     #    puts stderr $text
@@ -204,18 +200,35 @@ proc morji::check_database {} {
     return [string equal $ret ""]
 }
 
-proc gen_db {} {
-    db transaction {
-        do_twoside {*tokipona*}
-        do_twoside {*lidepla*}
-        do_twoside {*gismu*}
-        do_twoside {*personaje*}
+set Patterns [dict create]
+proc tag_pattern {pattern type tag} {
+    global Patterns
+    dict set Patterns $pattern type $type
+    dict set Patterns $pattern tag $tag
+}
 
-        do_oneside {*euskara*}
-        do_oneside {lojban}
-        do_oneside {*lojban-cll*}
-        do_oneside {vortoj}
-        do_oneside {*Mc*}
+proc add_tag_for_pattern {fact_uid pattern} {
+    global Patterns
+    add_tag_for_fact $fact_uid [dict get $Patterns $pattern tag]
+}
+
+tag_pattern *tokipona* twoside tokipona
+tag_pattern *lidepla* twoside lidepla
+tag_pattern *gismu* twoside gismu
+tag_pattern *personaje* twoside PAO
+
+tag_pattern *euskara* oneside esapideak
+tag_pattern lojban oneside lojban-sentence
+tag_pattern *lojban-cll* oneside lojban-cll
+tag_pattern vortoj oneside vortoj
+tag_pattern *Mc* oneside idioms
+
+proc gen_db {} {
+    global Patterns
+    db transaction {
+        dict for {pattern data} $Patterns {
+            do_[dict get $data type] $pattern
+        }
     }
 }
 gen_db
