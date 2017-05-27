@@ -1096,7 +1096,7 @@ if {!([info exists morji::TEST] && $morji::TEST)} {
     try {
         morji::read_config
     } on error {msg} {
-        with_color red {
+        morji::with_color red {
             puts stderr "Error reading configuration file: $msg"
         }
     }
