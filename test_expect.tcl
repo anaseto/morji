@@ -108,7 +108,17 @@ expect {all}
 ok {deselected “all”}
 send \n
 expect {>>}
+send r
+expect {tag to rename}
+send mytag\n
+expect {new tag name}
+send mynewtag\n
+send T
+expect {mynewtag}
+send \n
+
 # exit
+expect {>>}
 send Q
 
 puts "OK"

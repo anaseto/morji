@@ -645,6 +645,16 @@ namespace eval morji::test {
         morji::put_card_fields stdout question answer notes type mytag
         return ok
     } -result ok -output "@Question: question\n@Answer: answer\n@Notes: notes\n@Type: type\n@Tags: mytag\n"
+
+    test rename_tag-1 {rename tag} -setup {
+        morji::init_state
+        morji::add_fact "question" "answer" notes oneside {english lojban}
+    } -body {
+        morji::rename_tag lojban gismu
+        morji::get_tags
+    } -cleanup {
+        db close
+    } -result "all english gismu"
 }
 
 namespace delete morji::test

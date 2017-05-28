@@ -66,8 +66,6 @@ proc morji::big_test {} {
             set START_TIME [clock add $START_TIME 1 day]
         }
     }
-    #puts [check_database]
-    #dump_database
     start
 }
 
@@ -78,17 +76,18 @@ proc morji::dump_database {} {
     puts [db eval {SELECT * FROM fact_tags} fact_tags { parray fact_tags }]
 }
 
-proc morji::check_database {} {
-    set ret [db eval {
-        SELECT uid FROM facts
-        WHERE NOT EXISTS(
-            SELECT 1 FROM fact_tags, tags
-            WHERE facts.uid = fact_tags.fact_uid
-            AND fact_tags.tag_uid = tags.uid
-            AND tags.name = 'all')
-    }]
-    return [string equal $ret ""]
+proc morji::debug_misc {} {
+    init
+    set tomorrow [clock add [start_of_day] 1 day]
+    puts [db eval [substcmd {
+            EXPLAIN QUERY PLAN SELECT cards.uid FROM cards
+            WHERE next_rep < $tomorrow
+            AND reps > 0 AND
+            [get_cards_where_tag_clause]
+            ORDER BY next_rep - last_rep
+    }]]
 }
 
-#morji::interactive_test
-morji::big_test
+morji::interactive_test
+#morji::big_test
+#morji::debug_misc

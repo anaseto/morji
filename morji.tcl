@@ -335,6 +335,10 @@ proc morji::get_card_tags {uid} {
 
 ######################### tag functions ################ 
 
+proc morji::get_tags {} {
+    return [db eval {SELECT name FROM tags ORDER BY name}]
+}
+
 proc morji::get_active_tags {} {
     return [db eval {SELECT name FROM tags WHERE active = 1 ORDER BY name}]
 }
@@ -349,6 +353,10 @@ proc morji::select_tags {pattern} {
 
 proc morji::deselect_tags {pattern} {
     db eval {UPDATE tags SET active = 0 WHERE name GLOB $pattern}
+}
+
+proc morji::rename_tag {old_name new_name} {
+    db eval {UPDATE tags SET name=$new_name WHERE name=$old_name}
 }
 
 ######################### scheduling ################ 
@@ -542,6 +550,7 @@ proc morji::put_context_independent_keys {} {
   N      new card
   t      select tags with glob pattern
   T      deselect tags with glob pattern
+  r      rename a tag
   s      show cards scheduled in the next week
   S      show statistics
   Q      quit program}
@@ -685,6 +694,9 @@ proc morji::edit_new_card {} {
     with_tempfile tmp tmpfile {
         set type [db onecolumn {SELECT value FROM misc_info WHERE key='last_added_fact_type'}]
         set tags [db onecolumn {SELECT value FROM misc_info WHERE key='last_added_fact_tags'}]
+        if {$type eq ""} {
+            set type oneside
+        }
         put_card_fields $tmp {} {} {} $type $tags
         flush $tmp
         seek $tmp 0
@@ -923,23 +935,50 @@ proc morji::handle_base_key {key} {
             put_header "Inactive Tags"
             puts [get_inactive_tags]
             set line [get_line "+tag>>"]
-            select_tags $line
-            return restart
+            if {$line ne ""} {
+                select_tags $line
+                return restart
+            } else {
+                return 1
+            }
         }
         T {
             put_header "Active Tags"
             puts [get_active_tags]
             set line [get_line "-tag>>"]
-            deselect_tags $line
-            return restart
+            if {$line ne ""} {
+                deselect_tags $line
+                return restart
+            } else {
+                return 1
+            }
         }
         + { if {$TEST} { return next_day } }
         N { edit_new_card; return restart }
-        S { show_statistics; return 1 }
+        r { rename_tag_prompt; return 1 }
         s { show_cards_scheduled_prompt; return 1 }
+        S { show_statistics; return 1 }
         Q { puts ""; return quit }
         ? { put_context_independent_help; return 1 }
     }
+}
+
+proc morji::rename_tag_prompt {} {
+    set tags [get_tags]
+    put_header "Tags"
+    puts $tags
+    set old_tag [get_line "tag to rename>>"]
+    if {$old_tag ni $tags} {
+        error "tag does not exist: $old_tag"
+    }
+    set new_tag [get_line "new tag name>>"]
+    if {$new_tag in $tags} {
+        error "tag name already exists: $new_tag"
+    }
+    if {$new_tag eq ""} {
+        error "empty tag name not allowed"
+    }
+    rename_tag $old_tag $new_tag
 }
 
 proc morji::put_stats {key value} {
