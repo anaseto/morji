@@ -190,15 +190,22 @@ proc escape_text {text} {
 #}
 #
 proc morji::check_database {} {
-    set ret [db eval {
-        SELECT 1 FROM facts
-        WHERE NOT EXISTS(
-            SELECT 1 FROM fact_tags, tags
-            WHERE facts.uid = fact_tags.fact_uid
-            AND fact_tags.tag_uid = tags.uid
-            AND tags.name = 'all')
-    }]
-    return [string equal $ret ""]
+    puts -nonewline "checking database… "
+    if {![check_all_tag]} {
+        return 0
+    }
+    puts "ok"
+    return 1
+}
+
+proc morji::check_all_tag {} {
+    set all_uid [db onecolumn {SELECT uid FROM tags WHERE name='all'}]
+    set uids [db eval {SELECT 1 FROM facts
+        WHERE NOT EXISTS (SELECT 1 FROM fact_tags WHERE fact_uid = facts.uid AND fact_tags.tag_uid=$all_uid)}]
+    if {$uids ne ""} {
+        return 0
+    }
+    return 1
 }
 
 set Patterns [dict create]
@@ -222,7 +229,7 @@ tag_pattern *euskara* oneside esapideak
 tag_pattern lojban oneside lojban-sentence
 tag_pattern *lojban-cll* oneside lojban-cll
 tag_pattern vortoj oneside vortoj
-tag_pattern *Mc* oneside idioms
+#tag_pattern *Mc* oneside idioms
 
 proc gen_db {} {
     global Patterns
@@ -233,10 +240,8 @@ proc gen_db {} {
     }
 }
 gen_db
-#puts "checking database…"
-#if {![morji::check_database]} {
-#    puts stderr "invalid database"
-#}
-#puts "ok"
+if {![morji::check_database]} {
+    puts stderr "invalid database"
+}
 set morji::TEST 0
 morji::main

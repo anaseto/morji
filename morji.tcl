@@ -45,7 +45,9 @@ proc morji::init_state {{dbfile :memory:}} {
             -- additional data whose meaning depends on facts.type
             fact_data TEXT NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS cards_idx2 ON cards(fact_uid);
+        CREATE INDEX IF NOT EXISTS cards_idx1 ON cards(next_rep);
+        CREATE INDEX IF NOT EXISTS cards_idx2 ON cards(last_rep, next_rep);
+        CREATE INDEX IF NOT EXISTS cards_idx3 ON cards(fact_uid);
         CREATE TABLE IF NOT EXISTS tags(
             uid INTEGER PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
@@ -57,8 +59,8 @@ proc morji::init_state {{dbfile :memory:}} {
             fact_uid INTEGER NOT NULL REFERENCES facts ON DELETE CASCADE,
             tag_uid INTEGER NOT NULL REFERENCES tags ON DELETE CASCADE
         );
-        CREATE INDEX IF NOT EXISTS fact_tags_idx1 ON fact_tags(fact_uid);
-        CREATE INDEX IF NOT EXISTS fact_tags_idx2 ON fact_tags(tag_uid);
+        CREATE INDEX IF NOT EXISTS fact_tags_idx1 ON fact_tags(tag_uid);
+        CREATE UNIQUE INDEX IF NOT EXISTS fact_tags_idx2 ON fact_tags(fact_uid, tag_uid);
         CREATE TABLE IF NOT EXISTS facts(
             uid INTEGER PRIMARY KEY,
             question TEXT NOT NULL,
