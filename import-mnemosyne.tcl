@@ -4,29 +4,50 @@ namespace eval morji {
 }
 source -encoding utf-8 morji.tcl
 
-sqlite3 mnemodb ~/basura/default.db -readonly true
-morji::process_config
-morji::init
-
-proc schema {} {
-    foreach table [mnemodb eval {SELECT sql FROM sqlite_master WHERE type='table' ORDER BY name}] {
-        puts $table
-    }
-}
-
-proc print_table {table} {
-    mnemodb eval [string cat {SELECT * FROM } $table { LIMIT 10}] values {
-        parray values 
-    }
-}
-
 proc add_tag_all {fact_uid} {
     set all_uid [db onecolumn {SELECT uid FROM tags WHERE name='all'}]
     db eval {INSERT INTO fact_tags(fact_uid, tag_uid) VALUES($fact_uid, $all_uid)}
 }
 
-#print_table data_for_fact
-#print_table cards
+proc do_oneside {tag_pattern} {
+    set ids [mnemodb eval {SELECT _fact_id FROM cards WHERE tags GLOB $tag_pattern}]
+    if {[lsort -integer -unique $ids] != $ids} {
+        error "do_oneside: not unique: $tag_pattern"
+    }
+    puts "found [llength $ids] for pattern '$tag_pattern'"
+    foreach fact_id $ids {
+        set rows [mnemodb eval {SELECT 1 FROM cards WHERE _fact_id = $fact_id}]
+        if {[llength $rows] != 1} {
+            error "bad number of cards for $fact_id"
+        }
+        mnemodb eval {
+            SELECT question, answer, tags, next_rep, last_rep, ret_reps_since_lapse, easiness, acq_reps_since_lapse
+            FROM cards WHERE _fact_id = $fact_id
+        } break
+        set question [clean_text $question $tag_pattern]
+        set answer [clean_text $answer $tag_pattern]
+        db eval {INSERT INTO facts(question, answer, notes, type) VALUES($question, $answer, '', 'oneside')}
+        set new_fact_uid [db last_insert_rowid]
+        add_tag_all $new_fact_uid
+        if {$last_rep == -1} {
+            unset next_rep
+            unset last_rep
+            if {$ret_reps_since_lapse > 0} {
+                error "bad reps: $ret_reps_since_lapse"
+            }
+        } elseif {$last_rep >= 0 && ($ret_reps_since_lapse > 0 || $acq_reps_since_lapse > 0)} {
+            incr ret_reps_since_lapse
+            incr next_rep 86400
+            incr last_rep 86400
+        }
+        db eval {
+            INSERT INTO cards(last_rep, next_rep, easiness, reps, fact_uid, fact_data)
+            VALUES($last_rep, $next_rep, $easiness, $ret_reps_since_lapse, $new_fact_uid, '')
+        }
+        add_tag_for_pattern $new_fact_uid $tag_pattern
+    }
+}
+
 proc do_twoside {tag_pattern} {
     set ids [mnemodb eval {SELECT DISTINCT _fact_id FROM cards WHERE tags GLOB $tag_pattern}]
     if {[lsort -integer -unique $ids] != $ids} {
@@ -77,55 +98,6 @@ proc do_twoside {tag_pattern} {
         add_tag_for_pattern $new_fact_uid $tag_pattern
     }
 }
-
-proc do_oneside {tag_pattern} {
-    set ids [mnemodb eval {SELECT _fact_id FROM cards WHERE tags GLOB $tag_pattern}]
-    if {[lsort -integer -unique $ids] != $ids} {
-        error "do_oneside: not unique: $tag_pattern"
-    }
-    puts "found [llength $ids] for pattern '$tag_pattern'"
-    foreach fact_id $ids {
-        set rows [mnemodb eval {SELECT 1 FROM cards WHERE _fact_id = $fact_id}]
-        if {[llength $rows] != 1} {
-            error "bad number of cards for $fact_id"
-        }
-        mnemodb eval {
-            SELECT question, answer, tags, next_rep, last_rep, ret_reps_since_lapse, easiness, acq_reps_since_lapse
-            FROM cards WHERE _fact_id = $fact_id
-        } break
-        set question [clean_text $question $tag_pattern]
-        set answer [clean_text $answer $tag_pattern]
-        db eval {INSERT INTO facts(question, answer, notes, type) VALUES($question, $answer, '', 'oneside')}
-        set new_fact_uid [db last_insert_rowid]
-        add_tag_all $new_fact_uid
-        if {$last_rep == -1} {
-            unset next_rep
-            unset last_rep
-            if {$ret_reps_since_lapse > 0} {
-                error "bad reps: $ret_reps_since_lapse"
-            }
-        } elseif {$last_rep >= 0 && ($ret_reps_since_lapse > 0 || $acq_reps_since_lapse > 0)} {
-            incr ret_reps_since_lapse
-            incr next_rep 86400
-            incr last_rep 86400
-        }
-        db eval {
-            INSERT INTO cards(last_rep, next_rep, easiness, reps, fact_uid, fact_data)
-            VALUES($last_rep, $next_rep, $easiness, $ret_reps_since_lapse, $new_fact_uid, '')
-        }
-        add_tag_for_pattern $new_fact_uid $tag_pattern
-    }
-}
-
-db eval {INSERT INTO tags(name) VALUES('all')}
-
-#morji::config::markup sep colored magenta
-#morji::config::markup link colored blue
-#morji::config::markup example styled italic
-#morji::config::markup var styled italic
-#morji::config::markup rafsi styled italic
-#morji::config::markup paren colored cyan
-#morji::config::markup type colored cyan
 
 proc clean_text {text pattern} {
     regsub -all {\[} $text {(} text
@@ -181,6 +153,17 @@ proc escape_text {text} {
     regsub -all {\[} $text {<<} text
     regsub -all {\]} $text {>>} text
     return $text
+}
+
+proc add_tag_for_pattern {fact_uid pattern} {
+    global Patterns
+    add_tag_for_fact $fact_uid [dict get $Patterns $pattern tag]
+}
+
+proc tag_pattern {pattern type tag} {
+    global Patterns
+    dict set Patterns $pattern type $type
+    dict set Patterns $pattern tag $tag
 }
 
 proc morji::check_database {} {
@@ -240,18 +223,26 @@ proc morji::check_twoside {} {
     return 1
 }
 
+proc gen_db {} {
+    global Patterns
+    db transaction {
+        dict for {pattern data} $Patterns {
+            do_[dict get $data type] $pattern
+        }
+    }
+}
+
+# required in config file:
+#
+#   markup sep colored magenta
+#   markup link colored blue
+#   markup example styled italic
+#   markup var styled italic
+#   markup rafsi styled italic
+#   markup paren colored cyan
+#   markup type colored cyan
+
 set Patterns [dict create]
-proc tag_pattern {pattern type tag} {
-    global Patterns
-    dict set Patterns $pattern type $type
-    dict set Patterns $pattern tag $tag
-}
-
-proc add_tag_for_pattern {fact_uid pattern} {
-    global Patterns
-    add_tag_for_fact $fact_uid [dict get $Patterns $pattern tag]
-}
-
 tag_pattern *tokipona* twoside tokipona
 tag_pattern *lidepla* twoside lidepla
 tag_pattern *gismu* twoside gismu
@@ -263,14 +254,10 @@ tag_pattern *lojban-cll* oneside lojban-cll
 tag_pattern vortoj oneside vortoj
 tag_pattern *Mc* oneside idioms
 
-proc gen_db {} {
-    global Patterns
-    db transaction {
-        dict for {pattern data} $Patterns {
-            do_[dict get $data type] $pattern
-        }
-    }
-}
+sqlite3 mnemodb ~/basura/default.db -readonly true
+morji::process_config
+morji::init
+db eval {INSERT INTO tags(name) VALUES('all')}
 gen_db
 if {![morji::check_database]} {
     puts stderr "invalid database"
