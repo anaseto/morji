@@ -4,21 +4,6 @@ namespace eval morji {
 }
 source -encoding utf-8 morji.tcl
 
-proc morji::test_go_to_next_day {} {
-    variable START_TIME
-    draw_line
-    put_info "... Next Day (testing)"
-    draw_line
-    puts -nonewline "from [clock format $START_TIME] "
-    set START_TIME [clock add $START_TIME 1 day]
-    puts "to [clock format $START_TIME]"
-    set key [get_key "(press any key or Q to quit) >>"]
-    if {$key eq "Q"} {
-        quit
-    }
-    tailcall run
-}
-
 proc morji::interactive_test {} {
     variable START_TIME
     process_config

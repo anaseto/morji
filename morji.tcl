@@ -1,3 +1,5 @@
+#!/usr/bin/env tclsh8.6
+
 package require sqlite3
 package require term::ansi::ctrl::unix
 package require term::ansi::send
@@ -5,7 +7,7 @@ package require term::ansi::code::ctrl
 package require textutil
 package require cmdline
 
-# TODO: backups, more tests, recuperar db mnemosyne
+# TODO: backups?
 
 ######################### namespace state ################ 
 
@@ -80,6 +82,7 @@ proc morji::init_state {{dbfile :memory:}} {
 
 ######################### managing facts ################ 
 
+# morji::add_fact adds a new fact to the database. It generates needed cards.
 proc morji::add_fact {question answer notes type {tags {}}} {
     db eval {INSERT INTO facts(question, answer, notes, type) VALUES($question, $answer, $notes, $type)}
     set fact_uid [db last_insert_rowid]
@@ -124,6 +127,7 @@ proc morji::add_card {fact_uid {fact_data {}}} {
     }
 }
 
+# morji::update_fact updates a fact with new data and tags.
 proc morji::update_fact {fact_uid question answer notes type tags} {
     set otype [db eval {SELECT type FROM facts WHERE uid=$fact_uid}]
     if {$otype ni {oneside twoside cloze}} {
@@ -253,6 +257,8 @@ proc morji::delete_fact {fact_uid} {
 
 ######################### getting cards and fact data ################ 
 
+# morji::start_of_day returns the date corresponding the start of a day for
+# morji, which is at 2AM.
 proc morji::start_of_day {} {
     variable START_TIME
     set fmt %d/%m/%Y
@@ -273,6 +279,7 @@ proc morji::get_cards_where_tag_clause {} {
     }
 }
 
+# morji::get_today_cards returns cards scheduled for revision before tomorrow.
 proc morji::get_today_cards {} {
     set tomorrow [clock add [start_of_day] 1 day]
     return [db eval [substcmd {
@@ -284,6 +291,8 @@ proc morji::get_today_cards {} {
     }]]
 }
 
+# morji::get_forgotten_cards returns cards previously memorized that have been
+# forgotten. It returns at most 25 cards.
 proc morji::get_forgotten_cards {} {
     set tomorrow [clock add [start_of_day] 1 day]
     return [db eval [substcmd {
@@ -296,6 +305,7 @@ proc morji::get_forgotten_cards {} {
     }]]
 }
 
+# morji::get_new_cards returns 5 new cards yet to be memorized.
 proc morji::get_new_cards {} {
     return [db eval [substcmd {
         SELECT min(cards.uid) FROM cards
@@ -361,6 +371,8 @@ proc morji::rename_tag {old_name new_name} {
 
 ######################### scheduling ################ 
 
+# morji::schedule_card schedules a card using a given grade. It returns
+# "scheduled" on successful operation.
 proc morji::schedule_card {uid grade} {
     variable START_TIME
     db eval {SELECT last_rep, next_rep, easiness, reps, fact_uid FROM cards WHERE uid=$uid} break
@@ -464,6 +476,8 @@ proc morji::check_field {field_contents field} {
     }
 }
 
+# morji::parse_cards parses card data and returns a list with data. The order
+# is: question, answer, notes, type, tags.
 proc morji::parse_card {text} {
     set fields [textutil::splitx $text {(@(?:Question|Answer|Notes|Type|Tags):)}]
     set field_contents [dict create]
@@ -489,24 +503,42 @@ proc morji::parse_card {text} {
 
 ######################### IO stuff ################ 
 
-proc morji::get_key {prompt} {
-    with_color blue {
-        puts -nonewline "$prompt "
-        flush stdout
+proc morji::with_color {color script} {
+    send::sda_fg$color
+    try { 
+        uplevel $script
+    } finally {
+        send::sda_fgdefault
     }
-    ::term::ansi::ctrl::unix::raw
-    set key [read stdin 1]
-    ::term::ansi::ctrl::unix::cooked
-    puts $key
-    return $key
 }
 
-proc morji::get_line {prompt} {
-    with_color blue {
-        puts -nonewline "$prompt "
-        flush stdout
+proc morji::with_style {style script} {
+    send::sda_$style
+    try { 
+        uplevel $script
+    } finally {
+        send::sda_no$style
     }
-    return [gets stdin]
+}
+
+proc morji::colored {color text} {
+    return "[::term::ansi::code::ctrl::sda_fg$color]$text[::term::ansi::code::ctrl::sda_fgdefault]"
+}
+
+proc morji::styled {style text} {
+    return "[::term::ansi::code::ctrl::sda_$style]$text[::term::ansi::code::ctrl::sda_no$style]"
+}
+
+proc morji::warn {msg} {
+    with_color red {
+        puts "Warning: $msg"
+    }
+}
+
+proc morji::put_info {msg} {
+    with_color cyan {
+        puts "Info: $msg"
+    }
 }
 
 proc morji::draw_line {} {
@@ -589,6 +621,18 @@ proc morji::put_text {text} {
     puts [textutil::adjust [join $buf ""] -length 85]
 }
 
+proc morji::markup::cloze {cloze {hint {[…]}}} {
+    if {$morji::markup::CLOZE == 0} {
+        set ret [morji::styled bold $hint]
+    } elseif {$morji::markup::CLOZE <= -42} {
+        set ret "\[cloze $cloze [morji::styled bold $hint]\]"
+    } else {
+        set ret $cloze
+    }
+    incr morji::markup::CLOZE -1
+    return $ret
+}
+
 proc morji::config::markup {name type arg} {
     if {$type ni {styled colored}} {
         error "markup $name: bad type: $type (should be \"styled\" or \"colored\")"
@@ -606,20 +650,10 @@ proc morji::config::markup {name type arg} {
     ]
 }
 
+# [em ...] emphasis predefined tag.
 morji::config::markup em styled bold
 
-proc morji::markup::cloze {cloze {hint {[…]}}} {
-    if {$morji::markup::CLOZE == 0} {
-        set ret [morji::styled bold $hint]
-    } elseif {$morji::markup::CLOZE <= -42} {
-        set ret "\[cloze $cloze [morji::styled bold $hint]\]"
-    } else {
-        set ret $cloze
-    }
-    incr morji::markup::CLOZE -1
-    return $ret
-}
-
+# [lbracket] and [rbracket] markup tags
 foreach {n s} {lbracket \[ rbracket \]} {
     proc morji::markup::$n {} [list return $s]
 }
@@ -677,6 +711,26 @@ proc morji::put_card_fields {ch {question {}} {answer {}} {notes {}} {type {}} {
     puts $ch "@Notes: $notes"
     puts $ch "@Type: $type"
     puts $ch "@Tags: $tags"
+}
+
+proc morji::get_key {prompt} {
+    with_color blue {
+        puts -nonewline "$prompt "
+        flush stdout
+    }
+    ::term::ansi::ctrl::unix::raw
+    set key [read stdin 1]
+    ::term::ansi::ctrl::unix::cooked
+    puts $key
+    return $key
+}
+
+proc morji::get_line {prompt} {
+    with_color blue {
+        puts -nonewline "$prompt "
+        flush stdout
+    }
+    return [gets stdin]
 }
 
 proc morji::with_tempfile {tmp tmpfile script} {
@@ -807,44 +861,6 @@ proc morji::ask_for_initial_grade {fact_uid} {
     }
 }
 
-proc morji::warn {msg} {
-    with_color red {
-        puts "Warning: $msg"
-    }
-}
-
-proc morji::put_info {msg} {
-    with_color cyan {
-        puts "Info: $msg"
-    }
-}
-
-proc morji::with_color {color script} {
-    send::sda_fg$color
-    try { 
-        uplevel $script
-    } finally {
-        send::sda_fgdefault
-    }
-}
-
-proc morji::colored {color text} {
-    return "[::term::ansi::code::ctrl::sda_fg$color]$text[::term::ansi::code::ctrl::sda_fgdefault]"
-}
-
-proc morji::styled {style text} {
-    return "[::term::ansi::code::ctrl::sda_$style]$text[::term::ansi::code::ctrl::sda_no$style]"
-}
-
-proc morji::with_style {style script} {
-    send::sda_$style
-    try { 
-        uplevel $script
-    } finally {
-        send::sda_no$style
-    }
-}
-
 proc morji::prompt_delete_card {uid} {
     if {[prompt_confirmation {Delete card}]} {
         db eval {SELECT fact_uid FROM cards WHERE uid=$uid} break
@@ -968,6 +984,9 @@ proc morji::rename_tag_prompt {} {
     put_header "Tags"
     puts $tags
     set old_tag [get_line "tag to rename>>"]
+    if {$old_tag eq ""} {
+        return
+    }
     if {$old_tag ni $tags} {
         error "tag does not exist: $old_tag"
     }
@@ -981,11 +1000,6 @@ proc morji::rename_tag_prompt {} {
     rename_tag $old_tag $new_tag
 }
 
-proc morji::put_stats {key value} {
-    put_header $key cyan
-    puts $value
-}
-
 proc morji::show_cards_scheduled_prompt {} {
     set key [get_key "cards scheduled (w/m/y)>>"]
     switch $key {
@@ -997,6 +1011,11 @@ proc morji::show_cards_scheduled_prompt {} {
         }
     }
     show_cards_scheduled_next_days $days
+}
+
+proc morji::put_stats {key value} {
+    put_header $key cyan
+    puts $value
 }
 
 proc morji::show_cards_scheduled_next_days {days} {
@@ -1130,6 +1149,22 @@ proc morji::start {} {
 proc morji::quit {} {
     db close
     exit
+}
+
+proc morji::test_go_to_next_day {} {
+    # This function is for testing purposes. It advances time to next day.
+    variable START_TIME
+    draw_line
+    put_info "... Next Day (testing)"
+    draw_line
+    puts -nonewline "from [clock format $START_TIME] "
+    set START_TIME [clock add $START_TIME 1 day]
+    puts "to [clock format $START_TIME]"
+    set key [get_key "(press any key or Q to quit) >>"]
+    if {$key eq "Q"} {
+        quit
+    }
+    tailcall run
 }
 
 proc morji::get_config_location {} {
