@@ -1080,9 +1080,7 @@ proc morji::start {} {
     try {
         run
     } on error {result} {
-        with_color red {
-            puts "Fatal Error: $result"
-        }
+        puts stderr "morji: fatal error: $result"
         set ret 1
     } finally {
         db close
@@ -1113,16 +1111,14 @@ proc morji::get_config_location {} {
 }
 
 proc morji::process_config {{file {}}} {
-    if {$file eq ""} {
-        set file [get_config_location]
-    }
     try {
+        if {$file eq ""} {
+            set file [get_config_location]
+        }
         namespace eval config source $file
     } on error {msg more} {
-        with_color red {
-            puts "Error reading configuration file. Details:"
-        }
-        puts [dict get $more -errorinfo]
+        puts stderr "morji: error reading configuration file: $msg.\nDetails:"
+        puts stderr [dict get $more -errorinfo]
         exit 1
     }
 }
@@ -1143,9 +1139,7 @@ proc morji::init {{dbfile :memory:}} {
     try {
         init_state $dbfile
     } on error {msg} {
-        with_color red {
-            puts "Error initializing database: $msg"
-        }
+        puts stderr "morji: error initializing database: $msg"
         if {[namespace which -command db] ne ""} {
             db close
         }
@@ -1162,19 +1156,30 @@ proc morji::main {} {
     try {
         array set params [::cmdline::getoptions ::argv $options $usage]
     } trap {CMDLINE USAGE} {msg} {
-        puts $msg
+        puts stderr $msg
         exit 1
     }
     if {$params(c) ne ""} {
-        process_config $params(c)
+        if {[file exists $param(c)]} {
+            process_config $params(c)
+        } else {
+            puts stderr "morji: error: no such file: $params(c)"
+            exit 1
+        }
     } else {
         process_config
     }
     if {$params(f) ne ""} {
         init $params(f)
     } else {
-        #init [morji::get_db_location]
-        init
+        try {
+            #set dbfile [get_db_location]
+            set dbfile :memory:
+        } on error {msg} {
+            puts stderr "Getting db file location: $msg"
+            exit 1
+        }
+        init $dbfile
     }
     start
 }
