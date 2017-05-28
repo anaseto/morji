@@ -369,14 +369,14 @@ namespace eval morji::test {
         set morji::START_TIME $day
         set i 0
         db transaction {
-            while {$i < 30} {
+            while {$i < 100} {
                 morji::add_fact "What is the answer n°\[em $i\]?" "This is the answer n°\[em $i\]" notes oneside english
                 incr i
             }
         }
         set i 0
         db transaction {
-            while {$i < 30} {
+            while {$i < 100} {
                 morji::add_fact "hitz \[em $i\]" "valsi \[em $i\]" notes twoside lojban
                 incr i
             }
@@ -386,14 +386,31 @@ namespace eval morji::test {
             set j 0
             while {$j < 400} {
                 set i [expr {$j * 5 + 1}]
-                while {$i < 90 && $i <= ($j+1) * 5 && $i > $j * 5} {
+                while {$i < 300 && $i <= ($j+1) * 5 && $i > $j * 5} {
                     set r [expr {rand()}]
+                    set reps_before [db eval {SELECT reps FROM cards WHERE uid=$i}]
                     if {$r < 0.03} {
                         morji::schedule_card $i hard
-                    } elseif {$r < 0.5} {
+                        db eval {SELECT last_rep, next_rep FROM cards WHERE uid=$i} break
+                        if {$next_rep - $last_rep > 3*$day || $next_rep - $last_rep < 1*$day} {
+                            return "bad first schedule for hard card"
+                        }
+                    } elseif {$r < 0.05} {
                         morji::schedule_card $i easy
+                        db eval {SELECT last_rep, next_rep FROM cards WHERE uid=$i} break
+                        if {$next_rep - $last_rep > 8*$day || $next_rep - $last_rep < 6*$day} {
+                            return "bad first schedule for easy card"
+                        }
                     } else {
                         morji::schedule_card $i good
+                        db eval {SELECT last_rep, next_rep FROM cards WHERE uid=$i} break
+                        if {$next_rep - $last_rep > 3*$day || $next_rep - $last_rep < 1*$day} {
+                            return "bad first schedule for good card"
+                        }
+                    }
+                    set reps_after [db eval {SELECT reps FROM cards WHERE uid=$i}]
+                    if {$reps_after != $reps_before + 1} {
+                        return "bad reps after first schedule"
                     }
                     db eval {SELECT last_rep, next_rep, reps FROM cards WHERE uid=$i} {
                         set interval($i) [expr {$next_rep-$last_rep}] 

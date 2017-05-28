@@ -205,7 +205,7 @@ proc morji::check_all_tag {} {
     set all_uid [db onecolumn {SELECT uid FROM tags WHERE name='all'}]
     set uids [db eval {
         SELECT 1 FROM facts
-        WHERE NOT EXISTS (SELECT 1 FROM fact_tags WHERE fact_uid = facts.uid AND fact_tags.tag_uid=$all_uid)
+        WHERE NOT EXISTS(SELECT 1 FROM fact_tags WHERE fact_uid = facts.uid AND fact_tags.tag_uid=$all_uid)
     }]
     if {$uids ne ""} {
         return 0
