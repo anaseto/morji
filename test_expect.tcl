@@ -11,7 +11,7 @@ proc ok {msg} {
 set env(EDITOR) ./test_editor.tcl
 
 log_user $log
-spawn tclsh8.6 morji.tcl :memory:
+spawn tclsh8.6 morji.tcl -f :memory:
 expect {No cards to review}
 expect {>>}
 send ?

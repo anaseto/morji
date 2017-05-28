@@ -276,4 +276,4 @@ if {![morji::check_database]} {
     puts stderr "invalid database"
 }
 set morji::TEST 0
-morji::main
+morji::start

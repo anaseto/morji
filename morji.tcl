@@ -3,6 +3,7 @@ package require term::ansi::ctrl::unix
 package require term::ansi::send
 package require term::ansi::code::ctrl
 package require textutil
+package require cmdline
 
 # TODO: backups, more tests, recuperar db mnemosyne
 
@@ -1074,7 +1075,7 @@ proc morji::run {} {
     }
 }
 
-proc morji::main {} {
+proc morji::start {} {
     set ret 0
     try {
         run
@@ -1094,7 +1095,7 @@ proc morji::quit {} {
     exit
 }
 
-proc morji::read_init_config_or_create_new {} {
+proc morji::get_config_location {} {
     if {[info exists ::env(XDG_CONFIG_HOME)]} {
         set config_dir $::env(XDG_CONFIG_HOME)/morji
     } else {
@@ -1108,13 +1109,15 @@ proc morji::read_init_config_or_create_new {} {
 }
         close $fh
     }
-    namespace eval config source $config_dir/init.tcl
+    return $config_dir/init.tcl
 }
 
-
-proc morji::process_config {} {
+proc morji::process_config {{file {}}} {
+    if {$file eq ""} {
+        set file [get_config_location]
+    }
     try {
-        read_init_config_or_create_new
+        namespace eval config source $file
     } on error {msg more} {
         with_color red {
             puts "Error reading configuration file. Details:"
@@ -1122,6 +1125,18 @@ proc morji::process_config {} {
         puts [dict get $more -errorinfo]
         exit 1
     }
+}
+
+proc morji::get_db_location {} {
+    if {[info exists ::env(XDG_DATA_HOME)]} {
+        set data_dir $::env(XDG_DATA_HOME)/morji
+    } else {
+        set data_dir ~/.local/share/morji
+    }
+    if {![file exists $data_dir]} {
+        file mkdir $data_dir
+    }
+    return $data_dir/morji.db
 }
 
 proc morji::init {{dbfile :memory:}} {
@@ -1138,9 +1153,33 @@ proc morji::init {{dbfile :memory:}} {
     }
 }
 
+proc morji::main {} {
+    set options {
+        {f.arg "" "custom database file location"}
+        {c.arg "" "custom config file location"}
+    }
+    set usage ": morji \[-c config-file\] \[-f db-file\]\nOptions:"
+    try {
+        array set params [::cmdline::getoptions ::argv $options $usage]
+    } trap {CMDLINE USAGE} {msg} {
+        puts $msg
+        exit 1
+    }
+    if {$params(c) ne ""} {
+        process_config $params(c)
+    } else {
+        process_config
+    }
+    if {$params(f) ne ""} {
+        init $params(f)
+    } else {
+        #init [morji::get_db_location]
+        init
+    }
+    start
+}
+
 if {!([info exists morji::TEST] && $morji::TEST)} {
     set morji::TEST 0
-    morji::process_config
-    morji::init
     morji::main
 }

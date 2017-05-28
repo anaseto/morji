@@ -35,7 +35,7 @@ proc morji::interactive_test {} {
             incr i
         }
     }
-    main
+    start
 }
 
 proc morji::big_test {} {
@@ -68,7 +68,7 @@ proc morji::big_test {} {
     }
     #puts [check_database]
     #dump_database
-    main
+    start
 }
 
 proc morji::dump_database {} {
