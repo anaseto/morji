@@ -19,11 +19,14 @@ expect {quit program}
 ok help
 expect {>>}
 send s
-expect {*0 0 0 0*}
+expect {w/m/y}
+ok {week schedule prompt}
+send w
+expect {*0 0 0 0}
 ok {week schedule}
 expect {>>}
 send S
-expect {Unseen cards}
+expect {Cards not memorized}
 expect {Memorized cards}
 ok statistics
 
@@ -59,11 +62,11 @@ send Y
 ok confirm
 expect {>>}
 send S
-expect {Unseen cards}
-expect {1}
 expect {Cards not memorized}
 expect {1}
 expect {Memorized cards}
+expect {0}
+expect {Cards memorized today}
 expect {0}
 expect {>>}
 ok {statistics 1 unseen}
@@ -71,15 +74,16 @@ send g
 expect {>>}
 ok {grade good}
 send S
-expect {Unseen cards}
-expect {0}
 expect {Cards not memorized}
 expect {0}
 expect {Memorized cards}
 expect {1}
+expect {Cards memorized today}
+expect {1}
 expect {>>}
 ok {statistics 1 memorized}
 send s
+send w
 expect {1 0}
 ok {1 scheduled card}
 

@@ -261,7 +261,7 @@ tag_pattern *euskara* oneside esapideak
 tag_pattern lojban oneside lojban-sentence
 tag_pattern *lojban-cll* oneside lojban-cll
 tag_pattern vortoj oneside vortoj
-#tag_pattern *Mc* oneside idioms
+tag_pattern *Mc* oneside idioms
 
 proc gen_db {} {
     global Patterns

@@ -42,35 +42,28 @@ proc morji::big_test {} {
     variable START_TIME
     init
     db transaction {
-        for {set i 0} {$i < 10000} {incr i} {
+        for {set i 0} {$i < 7000} {incr i} {
             add_fact "What is the answer n°\[em $i\]?" "This is the answer n°\[em $i\]" notes oneside english
-            incr i
         }
     }
     db transaction {
-        for {set i 0} {$i < 10000} {incr i} {
+        for {set i 0} {$i < 7000} {incr i} {
             add_fact "hitz \[em $i\]" "vorto \[em $i\]" notes twoside lojban
-            incr i
         }
     }
     db transaction {
         set j 0
         set interval 0
-        for {set j 0} {$j < 400} {incr j} {
+        for {set j 0} {$j < 500} {incr j} {
             set cards [get_today_cards]
             foreach uid $cards {
                 schedule_card $uid good
             }
-            set START_TIME [clock add $START_TIME 1 day]
-            for {set i [expr {$j * 15 + 1}]} {$i < 30000 && $i <= ($j+1) * 15 && $i > $j * 15} {incr i} {
+            for {set i [expr {$j * 15 + 1}]} {$i < 7000*3 && $i <= ($j+1) * 15} {incr i} {
                 schedule_card $i good
+                incr k
             }
-            db eval {SELECT last_rep, next_rep FROM cards WHERE uid=1 AND next_rep NOTNULL} break
-            set new_interval [expr {int(($next_rep-$last_rep)/86400)}] 
-            if {$new_interval != $interval} {
-                set interval $new_interval
-                puts $new_interval
-            }
+            set START_TIME [clock add $START_TIME 1 day]
         }
     }
     #puts [check_database]

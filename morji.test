@@ -369,24 +369,21 @@ namespace eval morji::test {
         set morji::START_TIME $day
         set i 0
         db transaction {
-            while {$i < 100} {
+            for {set i 0} {$i < 100} {incr i} {
                 morji::add_fact "What is the answer n°\[em $i\]?" "This is the answer n°\[em $i\]" notes oneside english
-                incr i
             }
         }
         set i 0
         db transaction {
-            while {$i < 100} {
+            for {set i 0} {$i < 100} {incr i} {
                 morji::add_fact "hitz \[em $i\]" "valsi \[em $i\]" notes twoside lojban
-                incr i
             }
         }
     } -body {
         db transaction {
             set j 0
             while {$j < 400} {
-                set i [expr {$j * 5 + 1}]
-                while {$i < 300 && $i <= ($j+1) * 5 && $i > $j * 5} {
+                for {set i [expr {$j * 5 + 1}]} {$i < 300 && $i <= ($j+1) * 5 && $i > $j * 5} {incr i} {
                     set r [expr {rand()}]
                     set reps_before [db eval {SELECT reps FROM cards WHERE uid=$i}]
                     if {$r < 0.03} {
@@ -415,7 +412,6 @@ namespace eval morji::test {
                     db eval {SELECT last_rep, next_rep, reps FROM cards WHERE uid=$i} {
                         set interval($i) [expr {$next_rep-$last_rep}] 
                     }
-                    incr i
                 }
                 set morji::START_TIME [clock add $morji::START_TIME 1 day]
                 set cards [morji::get_today_cards]
@@ -625,11 +621,11 @@ namespace eval morji::test {
     test show_cards_scheduled_next_week-1 {show scheduled cards} -setup {
         morji::init_state
     } -body {
-        morji::show_cards_scheduled_next_week
+        morji::show_cards_scheduled_next_days 7
         return ok
     } -cleanup {
         db close
-    } -result ok -match regexp -output "Cards scheduled for next days\[^\d\]*0 0 0 0 0 0 0\n"
+    } -result ok -match regexp -output "Cards scheduled for next 7 days\[^\d\]*0 0 0 0 0 0 0\n"
 
     test show_statistics-1 {show statistics} -setup {
         morji::init_state
@@ -638,7 +634,7 @@ namespace eval morji::test {
         return ok
     } -cleanup {
         db close
-    } -result ok -match regexp -output "Unseen cards.*0.*Cards not memorized.*0.*Memorized cards.*0"
+    } -result ok -match regexp -output ".*Cards not memorized.*0.*Memorized cards.*0"
 
     test screen_start-1 {put screen start} -body {
         morji::put_screen_start
