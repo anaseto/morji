@@ -511,7 +511,7 @@ proc morji::prompt_confirmation {prompt} {
             Y { return 1 }
             n { return 0 }
             ? { 
-                put_header "Keys" cyan
+                put_header Keys cyan
                 puts {Type “Y” to confirm, or “n” to cancel.}
             }
             default {
@@ -583,7 +583,7 @@ proc morji::handle_base_key {key} {
     variable TEST
     switch $key {
         t {
-            put_header "Inactive Tags"
+            put_header {Inactive Tags}
             puts [get_inactive_tags]
             set line [get_line "+tag>>"]
             if {$line ne ""} {
@@ -594,7 +594,7 @@ proc morji::handle_base_key {key} {
             }
         }
         T {
-            put_header "Active Tags"
+            put_header {Active Tags}
             puts [get_active_tags]
             set line [get_line "-tag>>"]
             if {$line ne ""} {
@@ -756,7 +756,7 @@ proc morji::draw_line {} {
 ######################### help ################ 
 
 proc morji::put_keys_help {} {
-    put_header "Keys (on current card)" cyan
+    put_header {Keys (on current card)} cyan
     puts {
   q      show current card question again
   space  show current card answer
