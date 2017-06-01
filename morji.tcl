@@ -1178,7 +1178,7 @@ proc morji::get_config_location {} {
     if {[info exists ::env(XDG_CONFIG_HOME)]} {
         set config_dir $::env(XDG_CONFIG_HOME)/morji
     } else {
-        set config_dir ~/.config/morji
+        set config_dir $::env(HOME)/.config/morji
     }
     if {![file exists $config_dir] || ![file exists $config_dir/init.tcl]} {
         file mkdir $config_dir
@@ -1204,15 +1204,38 @@ proc morji::process_config {{file {}}} {
     }
 }
 
+proc morji::do_backup {data_dir} {
+    if {![file exists $data_dir/backups]} {
+        file mkdir $data_dir/backups
+    }
+    set dbfile $data_dir/morji.db
+    set backup_file $data_dir/backups/backup.db
+    if {[file exists $dbfile] && [file exists $backup_file]} {
+        if {[file mtime $dbfile] - [file mtime $backup_file] >= 86400} {
+            sqlite3 db $dbfile
+            try {
+                file rename $backup_file old-$backup_file
+                db backup $backup_file
+            } finally {
+                db close
+            }
+        }
+    } else {
+        sqlite3 db $dbfile
+        try { db backup $backup_file } finally { db close }
+    }
+}
+
 proc morji::get_db_location {} {
     if {[info exists ::env(XDG_DATA_HOME)]} {
         set data_dir $::env(XDG_DATA_HOME)/morji
     } else {
-        set data_dir ~/.local/share/morji
+        set data_dir $::env(HOME)/.local/share/morji
     }
     if {![file exists $data_dir]} {
         file mkdir $data_dir
     }
+    do_backup $data_dir
     return $data_dir/morji.db
 }
 
@@ -1254,8 +1277,7 @@ proc morji::main {} {
         init $params(f)
     } else {
         try {
-            #set dbfile [get_db_location]
-            set dbfile :memory:
+            set dbfile [get_db_location]
         } on error {msg} {
             puts stderr "Getting db file location: $msg"
             exit 1
