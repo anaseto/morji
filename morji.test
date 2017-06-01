@@ -555,15 +555,15 @@ namespace eval morji::test {
     } -match regexp -output {─}
 
     test put_help-1 {put help} -body {
-        morji::put_help
+        morji::put_keys_help
     } -match regexp -output {Keys [(]on current card[)]}
 
     test put_help-2 {put initial help} -body {
-        morji::put_help_initial_schedule_prompt
+        morji::put_initial_schedule_prompt_help
     } -match regexp -output {grade card memorization}
 
     test put_help-3 {put context independent help} -body {
-        morji::put_context_independent_help
+        morji::put_context_independent_keys_help
     } -match regexp -output {show this help}
 
     test put_bracket-1 {put bracket} -body {

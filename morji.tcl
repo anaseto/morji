@@ -468,13 +468,207 @@ proc morji::interval_noise {interval} {
     return [expr {int($noise / $day)}]
 }
 
-######################### fact parsing ################ 
+######################### prompts ################ 
 
-proc morji::check_field {field_contents field} {
-    if {[dict get $field_contents $field] ne ""} {
-        warn "double use of $field"
+proc morji::ask_for_initial_grade {fact_uid} {
+    set uids [db eval {SELECT uid FROM cards WHERE fact_uid=$fact_uid}]
+    set key [get_key "(initial grade) >>"]
+    switch $key {
+        a { return "scheduled" }
+        g { 
+            foreach card_uid $uids {schedule_card $card_uid good}
+            return "scheduled"
+        }
+        e { 
+            foreach card_uid $uids {schedule_card $card_uid easy}
+            return "scheduled"
+        }
+        E { return "edit" }
+        C { return "cancel" }
+        ? {
+            put_initial_schedule_prompt_help
+            return ""
+        }
+        Q { quit }
+    }
+    with_color red {
+        puts "Error: invalid key: $key (type ? for help)"
     }
 }
+
+proc morji::prompt_delete_card {uid} {
+    if {[prompt_confirmation {Delete card}]} {
+        db eval {SELECT fact_uid FROM cards WHERE uid=$uid} break
+        delete_fact $fact_uid
+        return restart
+    }
+}
+
+proc morji::prompt_confirmation {prompt} {
+    while {1} {
+        set key [get_key "$prompt? \[Y/n\] >>"]
+        switch $key {
+            Y { return 1 }
+            n { return 0 }
+            ? { 
+                put_header "Keys" cyan
+                puts {Type “Y” to confirm, or “n” to cancel.}
+            }
+            default {
+                with_color red {
+                    puts "Error: invalid key: $key (type ? for help)"
+                }
+            }
+        }
+    }
+}
+
+proc morji::card_prompt {card_uid} {
+    variables FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN
+    lassign [get_card_user_info $card_uid] question answer notes type fact_data
+    if {$FIRST_ACTION_FOR_CARD} {
+        draw_line
+        put_tags $type [get_card_tags $card_uid]
+        put_question $question $answer $type $fact_data
+    }
+    set key [get_key ">>"]
+    switch $key {
+        q { 
+            put_tags $type [get_card_tags $card_uid]
+            put_question $question $answer $type $fact_data;
+            return
+        }
+        " " { 
+            put_answer $question $answer $notes $type $fact_data
+            set ANSWER_ALREADY_SEEN 1
+            return
+        }
+        E { edit_existent_card $card_uid; return }
+        ? { put_keys_help; return }
+        D { return [prompt_delete_card $card_uid] }
+        a - h - g - e {
+            if {!$ANSWER_ALREADY_SEEN} {
+                error "you must see the answer before grading the card"
+            }
+        }
+    }
+
+    set ret [handle_base_key $key]
+    if {$ret ne ""} {
+        return $ret
+    }
+
+    if {$ANSWER_ALREADY_SEEN} {
+        switch $key {
+            a { return [schedule_card $card_uid again] }
+            h { return [schedule_card $card_uid hard] }
+            g { return [schedule_card $card_uid good] }
+            e { return [schedule_card $card_uid easy] }
+        }
+    }
+    error "invalid key: $key (type ? for help)"
+}
+
+proc morji::no_card_prompt {} {
+    set key [get_key ">>"]
+    set ret [handle_base_key $key]
+    if {$ret ne ""} {
+        return $ret
+    }
+
+    error "invalid key: $key (type ? for help)"
+}
+
+proc morji::handle_base_key {key} {
+    variable TEST
+    switch $key {
+        t {
+            put_header "Inactive Tags"
+            puts [get_inactive_tags]
+            set line [get_line "+tag>>"]
+            if {$line ne ""} {
+                select_tags $line
+                return restart
+            } else {
+                return 1
+            }
+        }
+        T {
+            put_header "Active Tags"
+            puts [get_active_tags]
+            set line [get_line "-tag>>"]
+            if {$line ne ""} {
+                deselect_tags $line
+                return restart
+            } else {
+                return 1
+            }
+        }
+        + { if {$TEST} { return next_day } }
+        N { edit_new_card; return restart }
+        r { rename_tag_prompt; return 1 }
+        s { show_cards_scheduled_prompt; return 1 }
+        S { show_statistics; return 1 }
+        Q { puts ""; return quit }
+        ? { put_context_independent_keys_help; return 1 }
+    }
+}
+
+proc morji::rename_tag_prompt {} {
+    set tags [get_tags]
+    put_header "Tags"
+    puts $tags
+    set old_tag [get_line "tag to rename>>"]
+    if {$old_tag eq ""} {
+        return
+    }
+    if {$old_tag ni $tags} {
+        error "tag does not exist: $old_tag"
+    }
+    set new_tag [get_line "new tag name>>"]
+    if {$new_tag in $tags} {
+        error "tag name already exists: $new_tag"
+    }
+    if {$new_tag eq ""} {
+        error "empty tag name not allowed"
+    }
+    rename_tag $old_tag $new_tag
+}
+
+proc morji::show_cards_scheduled_prompt {} {
+    set key [get_key "cards scheduled (w/m/y)>>"]
+    switch $key {
+        w { set days 7 }
+        m { set days 30 }
+        y { set days 365 }
+        default { 
+            error "invalid key: $key. Valid keys: w (7 days), m (30 days) and y (365 days)"
+        }
+    }
+    show_cards_scheduled_next_days $days
+}
+
+proc morji::get_line {prompt} {
+    with_color blue {
+        puts -nonewline "$prompt "
+        flush stdout
+    }
+    return [gets stdin]
+}
+
+proc morji::get_key {prompt} {
+    with_color blue {
+        puts -nonewline "$prompt "
+        flush stdout
+    }
+    ::term::ansi::ctrl::unix::raw
+    set key [read stdin 1]
+    ::term::ansi::ctrl::unix::cooked
+    puts $key
+    return $key
+}
+
+######################### fact parsing ################ 
 
 # morji::parse_cards parses card data and returns a list with data. The order
 # is: question, answer, notes, type, tags.
@@ -501,7 +695,13 @@ proc morji::parse_card {text} {
     return [dict values $field_contents]
 }
 
-######################### IO stuff ################ 
+proc morji::check_field {field_contents field} {
+    if {[dict get $field_contents $field] ne ""} {
+        warn "double use of $field"
+    }
+}
+
+######################### output stuff ################ 
 
 proc morji::with_color {color script} {
     send::sda_fg$color
@@ -541,12 +741,21 @@ proc morji::put_info {msg} {
     }
 }
 
+proc morji::put_header {title {color yellow}} {
+    with_color $color {
+        puts -nonewline "$title: "
+        flush stdout
+    }
+}
+
 proc morji::draw_line {} {
     # NOTE: this is suboptimal
     puts [string repeat ─ [::term::ansi::ctrl::unix::columns]]
 }
 
-proc morji::put_help {} {
+######################### help ################ 
+
+proc morji::put_keys_help {} {
     put_header "Keys (on current card)" cyan
     puts {
   q      show current card question again
@@ -557,10 +766,10 @@ proc morji::put_help {} {
   e      grade card recall as easy
   E      edit current card (if any)
   D      delete current card}
-    put_context_independent_keys
+    put_context_independent_keys_help
 }
 
-proc morji::put_help_initial_schedule_prompt {} {
+proc morji::put_initial_schedule_prompt_help {} {
     put_header "Keys" cyan
     puts {
   a      grade card as not memorized (again)
@@ -571,11 +780,7 @@ proc morji::put_help_initial_schedule_prompt {} {
   Q      quit program}
 }
 
-proc morji::put_context_independent_help {} {
-    put_context_independent_keys
-}
-
-proc morji::put_context_independent_keys {} {
+proc morji::put_context_independent_keys_help {} {
     put_header "Keys" cyan
     puts {
   ?      show this help
@@ -588,13 +793,9 @@ proc morji::put_context_independent_keys {} {
   Q      quit program}
 }
 
-proc morji::put_header {title {color yellow}} {
-    with_color $color {
-        puts -nonewline "$title: "
-        flush stdout
-    }
-}
+######################### text rendering ################ 
 
+# morji::put_text renders a text paragraph with markup tags.
 proc morji::put_text {text} {
     set elts [textutil::splitx $text {(\[[^\]]*\])}]
     set buf {}
@@ -705,32 +906,14 @@ proc morji::put_answer {question answer notes type fact_data} {
     }
 }
 
+######################### cards editing ################ 
+
 proc morji::put_card_fields {ch {question {}} {answer {}} {notes {}} {type {}} {tags {}}} {
     puts $ch "@Question: $question"
     puts $ch "@Answer: $answer"
     puts $ch "@Notes: $notes"
     puts $ch "@Type: $type"
     puts $ch "@Tags: $tags"
-}
-
-proc morji::get_key {prompt} {
-    with_color blue {
-        puts -nonewline "$prompt "
-        flush stdout
-    }
-    ::term::ansi::ctrl::unix::raw
-    set key [read stdin 1]
-    ::term::ansi::ctrl::unix::cooked
-    puts $key
-    return $key
-}
-
-proc morji::get_line {prompt} {
-    with_color blue {
-        puts -nonewline "$prompt "
-        flush stdout
-    }
-    return [gets stdin]
 }
 
 proc morji::with_tempfile {tmp tmpfile script} {
@@ -835,183 +1018,7 @@ proc morji::show_fact {fact_uid tags} {
     }
 }
 
-proc morji::ask_for_initial_grade {fact_uid} {
-    set uids [db eval {SELECT uid FROM cards WHERE fact_uid=$fact_uid}]
-    set key [get_key "(initial grade) >>"]
-    switch $key {
-        a { return "scheduled" }
-        g { 
-            foreach card_uid $uids {schedule_card $card_uid good}
-            return "scheduled"
-        }
-        e { 
-            foreach card_uid $uids {schedule_card $card_uid easy}
-            return "scheduled"
-        }
-        E { return "edit" }
-        C { return "cancel" }
-        ? {
-            put_help_initial_schedule_prompt
-            return ""
-        }
-        Q { quit }
-    }
-    with_color red {
-        puts "Error: invalid key: $key (type ? for help)"
-    }
-}
-
-proc morji::prompt_delete_card {uid} {
-    if {[prompt_confirmation {Delete card}]} {
-        db eval {SELECT fact_uid FROM cards WHERE uid=$uid} break
-        delete_fact $fact_uid
-        return restart
-    }
-}
-
-proc morji::prompt_confirmation {prompt} {
-    while {1} {
-        set key [get_key "$prompt? \[Y/n\] >>"]
-        switch $key {
-            Y { return 1 }
-            n { return 0 }
-            ? { 
-                put_header "Keys" cyan
-                puts {Type “Y” to confirm, or “n” to cancel.}
-            }
-            default {
-                with_color red {
-                    puts "Error: invalid key: $key (type ? for help)"
-                }
-            }
-        }
-    }
-}
-
-proc morji::card_prompt {card_uid} {
-    variables FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN
-    lassign [get_card_user_info $card_uid] question answer notes type fact_data
-    if {$FIRST_ACTION_FOR_CARD} {
-        draw_line
-        put_tags $type [get_card_tags $card_uid]
-        put_question $question $answer $type $fact_data
-    }
-    set key [get_key ">>"]
-    switch $key {
-        q { 
-            put_tags $type [get_card_tags $card_uid]
-            put_question $question $answer $type $fact_data;
-            return
-        }
-        " " { 
-            put_answer $question $answer $notes $type $fact_data
-            set ANSWER_ALREADY_SEEN 1
-            return
-        }
-        E { edit_existent_card $card_uid; return }
-        ? { put_help; return }
-        D { return [prompt_delete_card $card_uid] }
-        a - h - g - e {
-            if {!$ANSWER_ALREADY_SEEN} {
-                error "you must see the answer before grading the card"
-            }
-        }
-    }
-
-    set ret [handle_base_key $key]
-    if {$ret ne ""} {
-        return $ret
-    }
-
-    if {$ANSWER_ALREADY_SEEN} {
-        switch $key {
-            a { return [schedule_card $card_uid again] }
-            h { return [schedule_card $card_uid hard] }
-            g { return [schedule_card $card_uid good] }
-            e { return [schedule_card $card_uid easy] }
-        }
-    }
-    error "invalid key: $key (type ? for help)"
-}
-
-proc morji::no_card_prompt {} {
-    set key [get_key ">>"]
-    set ret [handle_base_key $key]
-    if {$ret ne ""} {
-        return $ret
-    }
-
-    error "invalid key: $key (type ? for help)"
-}
-
-proc morji::handle_base_key {key} {
-    variable TEST
-    switch $key {
-        t {
-            put_header "Inactive Tags"
-            puts [get_inactive_tags]
-            set line [get_line "+tag>>"]
-            if {$line ne ""} {
-                select_tags $line
-                return restart
-            } else {
-                return 1
-            }
-        }
-        T {
-            put_header "Active Tags"
-            puts [get_active_tags]
-            set line [get_line "-tag>>"]
-            if {$line ne ""} {
-                deselect_tags $line
-                return restart
-            } else {
-                return 1
-            }
-        }
-        + { if {$TEST} { return next_day } }
-        N { edit_new_card; return restart }
-        r { rename_tag_prompt; return 1 }
-        s { show_cards_scheduled_prompt; return 1 }
-        S { show_statistics; return 1 }
-        Q { puts ""; return quit }
-        ? { put_context_independent_help; return 1 }
-    }
-}
-
-proc morji::rename_tag_prompt {} {
-    set tags [get_tags]
-    put_header "Tags"
-    puts $tags
-    set old_tag [get_line "tag to rename>>"]
-    if {$old_tag eq ""} {
-        return
-    }
-    if {$old_tag ni $tags} {
-        error "tag does not exist: $old_tag"
-    }
-    set new_tag [get_line "new tag name>>"]
-    if {$new_tag in $tags} {
-        error "tag name already exists: $new_tag"
-    }
-    if {$new_tag eq ""} {
-        error "empty tag name not allowed"
-    }
-    rename_tag $old_tag $new_tag
-}
-
-proc morji::show_cards_scheduled_prompt {} {
-    set key [get_key "cards scheduled (w/m/y)>>"]
-    switch $key {
-        w { set days 7 }
-        m { set days 30 }
-        y { set days 365 }
-        default { 
-            error "invalid key: $key. Valid keys: w (7 days), m (30 days) and y (365 days)"
-        }
-    }
-    show_cards_scheduled_next_days $days
-}
+######################### stats ################ 
 
 proc morji::put_stats {key value} {
     put_header $key cyan
