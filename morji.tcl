@@ -381,8 +381,8 @@ proc morji::schedule_card {uid grade} {
     }
     # grades are the same as in anki: again, hard, good, easy
     if {(($reps == 0) && ($grade eq "again"))} {
-        # card was new or forgotten already, so no change
-        return "scheduled"
+        # card was new or already forgotten, so no change
+        return scheduled
     }
     if {$next_rep eq "" && $grade eq "hard"} {
         # NOTE: for unseen card grade "hard" is the same as "good"
@@ -405,7 +405,7 @@ proc morji::schedule_card {uid grade} {
         set reps 0
     }
     switch $reps {
-        0 { }
+        0 {}
         1 { 
             set new_next_rep [clock add $new_next_rep 1 day]
             if {$grade eq "easy"} {
@@ -449,7 +449,7 @@ proc morji::schedule_card {uid grade} {
         SET last_rep=$new_last_rep, next_rep=$new_next_rep, easiness=$easiness, reps=$reps
         WHERE uid=$uid
     }
-    return "scheduled"
+    return scheduled
 }
 
 proc morji::interval_noise {interval} {
@@ -474,17 +474,17 @@ proc morji::ask_for_initial_grade {fact_uid} {
     set uids [db eval {SELECT uid FROM cards WHERE fact_uid=$fact_uid}]
     set key [get_key "(initial grade) >>"]
     switch $key {
-        a { return "scheduled" }
+        a { return scheduled }
         g { 
             foreach card_uid $uids {schedule_card $card_uid good}
-            return "scheduled"
+            return scheduled
         }
         e { 
             foreach card_uid $uids {schedule_card $card_uid easy}
-            return "scheduled"
+            return scheduled
         }
-        E { return "edit" }
-        C { return "cancel" }
+        E { return edit }
+        C { return cancel }
         ? {
             put_initial_schedule_prompt_help
             return ""
@@ -616,7 +616,7 @@ proc morji::handle_base_key {key} {
 
 proc morji::rename_tag_prompt {} {
     set tags [get_tags]
-    put_header "Tags"
+    put_header Tags
     puts $tags
     set old_tag [get_line "tag to rename>>"]
     if {$old_tag eq ""} {
@@ -770,7 +770,7 @@ proc morji::put_keys_help {} {
 }
 
 proc morji::put_initial_schedule_prompt_help {} {
-    put_header "Keys" cyan
+    put_header Keys cyan
     puts {
   a      grade card as not memorized (again)
   g      grade card memorization as good
@@ -781,7 +781,7 @@ proc morji::put_initial_schedule_prompt_help {} {
 }
 
 proc morji::put_context_independent_keys_help {} {
-    put_header "Keys" cyan
+    put_header Keys cyan
     puts {
   ?      show this help
   N      new card
@@ -860,7 +860,7 @@ foreach {n s} {lbracket \[ rbracket \]} {
 }
 
 proc morji::put_question {question answer type fact_data} {
-    put_header "Question"
+    put_header Question
     switch $type {
         oneside { put_text $question }
         twoside {
@@ -879,13 +879,13 @@ proc morji::put_question {question answer type fact_data} {
 }
 
 proc morji::put_tags {type tags} {
-    put_header "Tags" yellow
+    put_header Tags yellow
     set tags [lsearch -inline -all -not -exact $tags all]
     puts $tags
 }
 
 proc morji::put_answer {question answer notes type fact_data} {
-    put_header "Answer"
+    put_header Answer
     switch $type {
         oneside { put_text $answer }
         twoside {
@@ -901,7 +901,7 @@ proc morji::put_answer {question answer notes type fact_data} {
         }
     }
     if {[regexp {\S} $notes]} {
-        put_header "Notes"
+        put_header Notes
         put_text $notes
     }
 }
