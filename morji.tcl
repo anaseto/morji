@@ -154,6 +154,10 @@ proc morji::update_fact {fact_uid question answer notes type tags} {
     update_tags_for_fact $fact_uid $tags
 }
 
+# morji::update_cloze_fact updates a fact of type cloze. It tries to be smart
+# and reuse card history in some common editing cases (e.g. delete or add
+# clozes and leave others as-is, modify clozes but preserve their order and
+# number, or permute clozes without changing them).
 proc morji::update_cloze_fact {fact_uid question} {
     set ocards [db eval {SELECT uid, fact_data FROM cards WHERE cards.fact_uid=$fact_uid}]
     set nclozes {}
@@ -164,15 +168,15 @@ proc morji::update_cloze_fact {fact_uid question} {
         lappend nclozes [list $i {*}[lrange $cmd 1 end]]
         incr i
     }
-    if {[llength $ocards] == 2 * [llength $nclozes]} {
-        # TODO: add more heuristics?
+    set nclozes_first [lmap cloze $nclozes {lindex $cloze 1}]
+    set oclozes_first [lmap {uid cloze} $ocards {lindex $cloze 1}]
+    if {[llength $oclozes_first] ==  [llength $nclozes_first] && [lsort $nclozes_first] != [lsort $oclozes_first] } {
         foreach {uid ocloze} $ocards {
             set ncloze [lindex $nclozes [lindex $ocloze 0]]
             db eval {UPDATE cards SET fact_data=$ncloze WHERE uid=$uid}
         }
         return
     }
-    set nclozes_first [lmap cloze $nclozes {lindex $cloze 1}]
     foreach {uid ocloze} $ocards {
         set found [lsearch -exact $nclozes_first [lindex $ocloze 1]]
         if {$found > -1} {
@@ -182,7 +186,6 @@ proc morji::update_cloze_fact {fact_uid question} {
             db eval {DELETE FROM cards WHERE uid=$uid}
         }
     }
-    set oclozes_first [lmap {uid cloze} $ocards {lindex $cloze 1}]
     foreach ncloze $nclozes {
         set found [lsearch -exact $oclozes_first [lindex $ncloze 1]]
         if {$found == -1} {
@@ -958,7 +961,9 @@ proc morji::edit_existent_card {card_uid} {
 }
 
 proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
-    set editor $::env(EDITOR)
+    if {[info exists ::env(EDITOR)]} {
+        set editor $::env(EDITOR)
+    }
     if {$editor eq ""} {
         set editor vim
     }
@@ -1184,7 +1189,7 @@ proc morji::get_config_location {} {
         file mkdir $config_dir
         set fh [open $config_dir/init.tcl w]
         puts $fh {# morji configuration file
-#markup word colored blue
+#markup em styled bold
 }
         close $fh
     }
