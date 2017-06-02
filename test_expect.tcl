@@ -35,6 +35,15 @@ expect {>>}
 send N
 #expect {Warning}
 #expect {Error}
+expect {Question}
+expect {question}
+expect {answer}
+expect {Notes}
+expect {notes}
+expect {Type}
+expect {oneside}
+expect {Tags}
+expect {mytag}
 expect {>>}
 ok new_card
 send ?

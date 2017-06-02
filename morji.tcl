@@ -986,7 +986,7 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
         }
     } else {
         set fact_uid [add_fact $question $answer $notes $type $tags]
-        show_fact $fact_uid tags
+        show_fact $fact_uid $tags
         set ret ""
         while {$ret ne "scheduled"} {
             set ret [ask_for_initial_grade $fact_uid]
