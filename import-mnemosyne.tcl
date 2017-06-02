@@ -243,24 +243,24 @@ proc gen_db {} {
 #   markup type colored cyan
 
 set Patterns [dict create]
+tag_pattern *Mc* oneside idioms
+tag_pattern *euskara* oneside esapideak
+tag_pattern lojban oneside lojban-sentence
+tag_pattern *lojban-cll* oneside lojban-cll
+tag_pattern vortoj oneside vortoj
+
 tag_pattern *tokipona* twoside tokipona
 tag_pattern *lidepla* twoside lidepla
 tag_pattern *gismu* twoside gismu
 tag_pattern *personaje* twoside PAO
 
-tag_pattern *euskara* oneside esapideak
-tag_pattern lojban oneside lojban-sentence
-tag_pattern *lojban-cll* oneside lojban-cll
-tag_pattern vortoj oneside vortoj
-tag_pattern *Mc* oneside idioms
-
 sqlite3 mnemodb ~/basura/default.db -readonly true
 morji::process_config
-morji::init
+morji::init ~/basura/morji.db
 db eval {INSERT INTO tags(name) VALUES('all')}
 gen_db
 if {![morji::check_database]} {
     puts stderr "invalid database"
 }
-set morji::TEST 0
-morji::start
+#set morji::TEST 0
+#morji::start
