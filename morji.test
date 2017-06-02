@@ -581,7 +581,7 @@ namespace eval morji::test {
     test put_cloze-1 {put cloze} -body {
         set morji::markup::CLOZE 0
         morji::markup::cloze cloze hint
-    } -result "[bold hint]"
+    } -result "[bold "\[hint\]"]"
 
     test put_cloze-2 {put cloze} -body {
         set morji::markup::CLOZE 0

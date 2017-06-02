@@ -823,9 +823,9 @@ proc morji::put_text {text} {
     puts [textutil::adjust [join $buf ""] -length 85]
 }
 
-proc morji::markup::cloze {cloze {hint {[…]}}} {
+proc morji::markup::cloze {cloze {hint {…}}} {
     if {$morji::markup::CLOZE == 0} {
-        set ret [morji::styled bold $hint]
+        set ret [morji::styled bold "\[$hint\]"]
     } elseif {$morji::markup::CLOZE <= -42} {
         set ret "\[cloze $cloze [morji::styled bold $hint]\]"
     } else {
