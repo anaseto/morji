@@ -7,8 +7,6 @@ package require term::ansi::code::ctrl
 package require textutil
 package require cmdline
 
-# TODO: backups?
-
 ######################### namespace state ################ 
 
 namespace eval morji {
