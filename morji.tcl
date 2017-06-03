@@ -1267,7 +1267,7 @@ proc morji::main {} {
         exit 1
     }
     if {$params(c) ne ""} {
-        if {[file exists $param(c)]} {
+        if {[file exists $params(c)]} {
             process_config $params(c)
         } else {
             puts stderr "morji: error: no such file: $params(c)"
