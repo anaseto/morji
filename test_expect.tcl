@@ -4,7 +4,7 @@ set log 0
 proc ok {msg} {
     global log
     if {!$log} {
-        puts $msg
+        puts "ok - $msg"
     }
 }
 
