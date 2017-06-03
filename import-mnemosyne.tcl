@@ -138,6 +138,7 @@ proc clean_text {text pattern} {
     regsub -all " \\\]" $text "\] " text
     regsub -all "\\\[(\\w+)  " $text { [\1 } text
     regsub -all {"([^"]*)"} $text {“\1”} text
+    regsub -all {[em ϟ]} $text {} text
 
     #if {[regexp {<\w+>} $text]} {
     #    puts stderr $text
