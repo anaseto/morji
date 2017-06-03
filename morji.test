@@ -315,7 +315,51 @@ namespace eval morji::test {
         db close
     } -result ok
 
-    test delete_fact {delete fact} -setup {
+    test update_cloze_fact-2 {update cloze fact} -setup {
+        morji::init_state
+    } -body {
+        set test_uid [morji::add_fact {[cloze a b], [cloze c d]} {} notes cloze mytag]
+        morji::update_fact $test_uid {[cloze c d], [cloze a b]} {} notes cloze mytag
+        set data [db eval {SELECT fact_data FROM cards}]
+        return $data
+    } -cleanup {
+        db close
+    } -result {{1 a b} {0 c d}}
+
+    test update_cloze_fact-3 {update cloze fact} -setup {
+        morji::init_state
+    } -body {
+        set test_uid [morji::add_fact {[cloze a b]} {} notes cloze mytag]
+        morji::update_fact $test_uid {[cloze c d], [cloze a b]} {} notes cloze mytag
+        set data [db eval {SELECT fact_data FROM cards}]
+        return $data
+    } -cleanup {
+        db close
+    } -result {{1 a b} {0 c d}}
+
+    test update_cloze_fact-4 {update cloze fact} -setup {
+        morji::init_state
+    } -body {
+        set test_uid [morji::add_fact {[cloze a b], [cloze c d]} {} notes cloze mytag]
+        morji::update_fact $test_uid {[cloze c d]} {} notes cloze mytag
+        set data [db onecolumn {SELECT uid FROM cards}]
+        return $data
+    } -cleanup {
+        db close
+    } -result 2
+
+    test update_cloze_fact-5 {update cloze fact} -setup {
+        morji::init_state
+    } -body {
+        set test_uid [morji::add_fact {[cloze a b], [cloze c d]} {} notes cloze mytag]
+        morji::update_fact $test_uid {[cloze a b], [cloze e f], [cloze c d]} {} notes cloze mytag
+        set data [db eval {SELECT uid, fact_data FROM cards}]
+        return $data
+    } -cleanup {
+        db close
+    } -result {1 {0 a b} 2 {2 c d} 3 {1 e f}}
+
+    test delete_fact-1 {delete fact} -setup {
         morji::init_state
         morji::add_fact question1 answer1 notes1 oneside mytag1
         morji::add_fact question2 answer2 notes2 oneside mytag2
@@ -326,6 +370,23 @@ namespace eval morji::test {
         }
         if {![db exists {SELECT 1 FROM facts WHERE uid=2}]} {
             return "fact 2 removed"
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
+    test delete_fact-2 {delete fact} -setup {
+        morji::init_state
+        morji::add_fact question1 answer1 notes1 oneside mytag1
+        morji::add_fact question2 answer2 notes2 oneside mytag2
+    } -body {
+        morji::delete_fact 2
+        if {![db exists {SELECT 1 FROM facts WHERE uid=1}]} {
+            return "fact 1 removed"
+        }
+        if {[db exists {SELECT 1 FROM facts WHERE uid=2}]} {
+            return "fact 2 not removed"
         }
         return ok
     } -cleanup {
@@ -349,19 +410,23 @@ namespace eval morji::test {
         set day 86400
         for {set i 0} {$i < 300} {incr i} {
             set morji::START_TIME [clock add [clock seconds] [expr {int(rand() * 2 * $day)}] seconds]
-            expr {[morji::start_of_day] > [clock add $morji::START_TIME -1 day]}
+            if {!([morji::start_of_day] > [clock add $morji::START_TIME -1 day])} {
+                return "start of day too little for $morji::START_TIME"
+            }
         }
-        return 1
-    } -result 1
+        return ok
+    } -result ok
 
     test start_of_day-2 {start of day} -body {
         set day 86400
         for {set i 0} {$i < 300} {incr i} {
             set morji::START_TIME [clock add [clock seconds] [expr {int(rand() * 2 * $day)}] seconds]
-            expr {[morji::start_of_day] < $morji::START_TIME}
+            if {!([morji::start_of_day] < $morji::START_TIME)} {
+                return "start of day too big for $morji::START_TIME"
+            }
         }
-        return 1
-    } -result 1
+        return ok
+    } -result ok
 
     test scheduling-1 {scheduling} -setup {
         morji::init_state
@@ -546,9 +611,13 @@ namespace eval morji::test {
         morji::put_text text
     } -output "text\n"
 
+    proc bold {text} {
+        return "[::term::ansi::code::ctrl::sda_bold]$text[::term::ansi::code::ctrl::sda_nobold]"
+    }
+
     test put_text-2 {put text} -body {
         morji::put_text {text [em emphasis]}
-    } -output "text [::term::ansi::code::ctrl::sda_bold]emphasis[::term::ansi::code::ctrl::sda_nobold]\n"
+    } -output "text [bold emphasis]\n"
 
     test put_draw_line-1 {draw line} -body {
         morji::draw_line
@@ -573,10 +642,6 @@ namespace eval morji::test {
     test put_bracket-2 {put bracket} -body {
         morji::markup::rbracket
     } -result {]}
-
-    proc bold {text} {
-        return "[::term::ansi::code::ctrl::sda_bold]$text[::term::ansi::code::ctrl::sda_nobold]"
-    }
 
     test put_cloze-1 {put cloze} -body {
         set morji::markup::CLOZE 0
