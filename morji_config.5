@@ -1,0 +1,91 @@
+.\" Copyright (c) 2017 Yon <anaseto@bardinflor.perso.aquilenet.fr>
+.\"
+.\" Permission to use, copy, modify, and distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.Dd Jun 03, 2017
+.Dt MORJI_SYNTAX 1
+.Os
+.Sh NAME
+.Nm morji_config
+.Nd morji initialization file
+.Sh DESCRIPTION
+The morji initialization file is a Tcl script executed in the namespace
+morji::config.
+The following commands are predefined:
+.Bl -tag
+.It Cm markup Ar name type arg
+Define a new markup command named
+.Ar name 
+in the namespace morji::config::markup.
+If the
+.Ar type
+argument is
+.Cm styled
+then
+.Ar arg
+can be any of:
+.Cm bold ,
+.Cm dim ,
+.Cm italic ,
+.Cm underline ,
+.Cm blink ,
+.Cm revers ,
+.Cm hidden ,
+.Cm strike .
+If the
+.Ar type
+argument is
+.Cm colored
+then
+.Ar arg
+can be any of:
+.Cm black ,
+.Cm red ,
+.Cm green ,
+.Cm yellow ,
+.Cm blue ,
+.Cm magenta ,
+.Cm cyan ,
+.Cm white
+or
+.Cm default .
+.El
+.Pp
+The
+.Cm EDITOR
+variable can be set to define the external command to use for editing commands.
+.Em Note:
+If this variable is not defined, the environment variable of the same name is
+used.
+.Sh EXAMPLES
+The
+.Pa init.tcl
+file can be, for example:
+.Bd -literal -offset indent
+markup important colored red
+markup example styled italic
+set EDITOR /usr/local/bin/vim
+.Ed
+.Pp
+This defines two markup commands
+.Cm important
+and
+.Cm example .
+The first uses red coloration and the second italic style, see
+.Xr morji_facts 5
+for their usage.
+The third line defines
+.Pa /usr/local/bin/vim
+as the command to run to edit cards.
+.Sh SEE ALSO
+.Xr morji 1 ,
+.Xr morji_facts 5 ,
