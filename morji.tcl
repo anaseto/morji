@@ -1256,8 +1256,8 @@ proc morji::init {{dbfile :memory:}} {
 
 proc morji::main {} {
     set options {
-        {f.arg "" "custom database file location"}
         {c.arg "" "custom config file location"}
+        {f.arg "" "custom database file location"}
     }
     set usage ": morji \[-c config-file\] \[-f db-file\]\nOptions:"
     try {
