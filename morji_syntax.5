@@ -1,0 +1,96 @@
+.\" Copyright (c) 2017 Yon <anaseto@bardinflor.perso.aquilenet.fr>
+.\"
+.\" Permission to use, copy, modify, and distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.Dd Jun 03, 2017
+.Dt MORJI_SYNTAX 1
+.Os
+.Sh NAME
+.Nm morji_syntax
+.Nd facts syntax
+.Sh DESCRIPTION
+The morji database contains a set of facts, encoding question/answer
+information.
+Each fact can have one or more cards.
+.Pp
+There are three types of facts:
+.Cm oneside ,
+.Cm twoside
+and
+.Cm cloze .
+Facts of type
+.Cm oneside
+generate simple question/answer cards.
+Facts of type
+.Cm twoside
+are pairs of the form front/back and back/front, particularly useful for
+vocabulary for generating recognition and production cards.
+Facts of type
+.Cm cloze
+generate question/answer cards, where the question has one or some words
+replaced by […] or a hint, and the answer contains the replaced words.
+.Pp
+Facts are written using the following syntax:
+.Bd -literal -offset indent
+@Question: question text
+@Answer: answer text
+@Notes: some notes
+@Type: oneside (or twoside or cloze)
+@Tags: some-tag
+.Ed
+.Pp
+The @Question: field contains the question text.
+The text can contain markup commands in brackets with the syntax:
+.Cm \&[ Ar cmd args ... Cm \&] .
+The list of arguments is a Tcl list.
+This means that braces and quotes can be used to write arguments with spaces.
+The predefined markup commands are:
+.Bl -tag -width 13n
+.It Cm em Ar args ...
+It emphasizes arguments joined with space interleaved.
+.It Cm lbracket , rbracket ,
+They can be used to write literal left and right square brackets.
+.It Cm cloze Ar cloze-text Ar hint
+This command is used for facts of type
+.Cm cloze .
+The argument
+.Ar cloze-text
+is the text that should appear in the answer.
+The argument
+.Ar hint
+is the text that replaces the cloze text.
+It should be noted that in cloze-deletion facts, several
+.Cm cloze
+commands can be used, resulting in generation of several cards, one for each
+.Cm cloze
+command.
+.El
+.Pp
+The @Answer: field contains the answer text.
+Its syntax is the same as with the @Question: field.
+This field is not used for facts of type
+.Cm cloze
+(answer is generated from cloze text).
+.Pp
+The @Notes: field contains some additional notes.
+The syntax is the same as with @Question: and @Answer:.
+It is particularly useful for facts of type
+.Cm twoside ,
+because it allows to show in answer the same additional information for the two
+sister-cards.
+.Pp
+The @Type: field contains the name of the type of the fact.
+.Pp
+The @Tags: field contains a Tcl list of tags associated with the fact, which
+can be used to organize facts by themes.
+.Sh SEE ALSO
+.Xr morji 1
