@@ -35,5 +35,26 @@ Specify a custom database file location.
 .El
 .Pp
 Help on key-bindings is available from within the user interface.
+.Sh FILES
+.Bl -tag -width Ds -compact
+.It Pa "$XDG_CONFIG_HOME/morji/init.tcl"
+The default initialization script path.
+See
+.Xr morji_config 5
+for the syntax of this file.
+If the variable
+.Ev XDG_CONFIG_HOME
+is not defined, the path
+.Pa ~/.config/
+is used instead.
+.It Pa "$XDG_DATA_HOME/morji/morji.db"
+The default database path.
+If the variable
+.Ev XDG_DATA_HOME
+is not defined, the path
+.Pa ~/.local/share/
+is used instead.
+.El
 .Sh SEE ALSO
-.Xr morji_syntax 5
+.Xr morji_facts 5 ,
+.Xr morji_config 5

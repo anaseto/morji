@@ -959,10 +959,13 @@ proc morji::edit_existent_card {card_uid} {
 }
 
 proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
-    if {[info exists ::env(EDITOR)]} {
+    if {[info exists config::EDITOR]} {
+        set editor $config::EDITOR
+    } elseif {[info exists ::env(EDITOR)]} {
         set editor $::env(EDITOR)
     }
     if {$editor eq ""} {
+        warn "No external editor configured. Trying vim…"
         set editor vim
     }
     exec $editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
