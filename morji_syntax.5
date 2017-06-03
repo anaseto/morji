@@ -36,8 +36,8 @@ are pairs of the form front/back and back/front, particularly useful for
 vocabulary for generating recognition and production cards.
 Facts of type
 .Cm cloze
-generate question/answer cards, where the question has one or some words
-replaced by […] or a hint, and the answer contains the replaced words.
+generate question/answer cards, where the question has some text
+replaced by […] or a hint, and the answer contains the replaced text.
 .Pp
 Facts are written using the following syntax:
 .Bd -literal -offset indent
@@ -50,24 +50,25 @@ Facts are written using the following syntax:
 .Pp
 The @Question: field contains the question text.
 The text can contain markup commands in brackets with the syntax:
-.Cm \&[ Ar cmd args ... Cm \&] .
+.Cm \&[ Ns Ar cmd args ... Cm \&] .
 The list of arguments is a Tcl list.
 This means that braces and quotes can be used to write arguments with spaces.
 The predefined markup commands are:
 .Bl -tag -width 13n
 .It Cm em Ar args ...
-It emphasizes arguments joined with space interleaved.
-.It Cm lbracket , rbracket ,
-They can be used to write literal left and right square brackets.
-.It Cm cloze Ar cloze-text Ar hint
+This command emphasizes arguments joined with space interleaved.
+.It Cm lbracket , rbracket
+These commands can be used to write literal left and right square brackets.
+.It Cm cloze Ar cloze-text Op Ar hint
 This command is used for facts of type
 .Cm cloze .
 The argument
 .Ar cloze-text
 is the text that should appear in the answer.
-The argument
+The optional argument
 .Ar hint
 is the text that replaces the cloze text.
+If no hint is provided, three dots […] are used.
 It should be noted that in cloze-deletion facts, several
 .Cm cloze
 commands can be used, resulting in generation of several cards, one for each
@@ -92,5 +93,24 @@ The @Type: field contains the name of the type of the fact.
 .Pp
 The @Tags: field contains a Tcl list of tags associated with the fact, which
 can be used to organize facts by themes.
+.Sh EXAMPLES
+Example of fact of type
+.Cm oneside :
+.Bd -literal -offset indent
+@Question: What is the word for “remember”?
+@Answer: morji
+@Notes:
+@Type: oneside
+@Tags: lojban
+.Ed
+.Pp
+Example of fact of type
+.Cm cloze :
+.Bd -literal -offset indent
+@Question: Zer da lore hau? Ez dut [cloze gogoratu remember].
+@Notes:
+@Type: cloze
+@Tags: euskara
+.Ed
 .Sh SEE ALSO
 .Xr morji 1
