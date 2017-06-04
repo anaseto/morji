@@ -1328,7 +1328,7 @@ proc morji::do_backup {data_dir} {
         if {[file mtime $dbfile] - [file mtime $backup_file] >= 86400} {
             sqlite3 db $dbfile
             try {
-                file rename $backup_file old-$backup_file
+                file rename -force $backup_file $backup_file.old
                 db backup $backup_file
             } finally {
                 db close
