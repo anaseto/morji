@@ -720,6 +720,15 @@ namespace eval morji::test {
     } -cleanup {
         db close
     } -result "all english gismu"
+
+    test fmt-1 {format paragraph} -body {
+        morji::fmt "
+        \033\[33m\033\[33mword word word word word word word word word \033\[33mword \033\[33mword
+        word word word word word word word word word word word word
+        word"
+    } -result "\033\[33m\033\[33mword word word word word word word word word \033\[33mword \033\[33mword
+word word word word word word word word word word word
+word word"
 }
 
 namespace delete morji::test

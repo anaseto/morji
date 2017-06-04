@@ -7,8 +7,6 @@ package require term::ansi::code::ctrl
 package require textutil
 package require cmdline
 
-# TODO: custom paragraph justification that accounts for ansi escapes.
-
 ######################### namespace state ################ 
 
 namespace eval morji {
@@ -865,8 +863,72 @@ proc morji::put_text {text} {
             lappend buf $elt
         }
     }
-    # XXX: length is buggy because of ansi escape sequences
-    puts [textutil::adjust [join $buf ""] -length 85]
+    puts [fmt [join $buf ""] 10]
+}
+
+# morji::fmt formats a paragraph $text with first line indentation $indent.
+proc morji::fmt {text {indent 0}} {
+    set chars [split $text ""]
+    set col 0
+    set wantspace 0
+    set escape 0
+    set wordbuf {}
+    set wlen 0
+    set pbuf {}
+    set first_line 1
+    foreach c $chars {
+        if {$escape} {
+            if {$c eq "m"} {
+                set escape 0
+            }
+            if {!([string is digit $c] || $c eq ";" || $c eq "\[" || $c eq "m")} {
+                warn "invalid character in escape sequence: “$c”"
+                set escape 0
+            }
+            lappend wordbuf $c
+            continue
+        }
+        if {$c eq "\033"} {
+            set escape 1
+            lappend wordbuf $c
+            continue
+        }
+        if {[string is space $c] && $c ne "\xa0"} {
+            if {$wlen > 0} {
+                if {$col+$wlen > ($first_line ? 56 - $indent : 56)} {
+                    if {$wantspace} {
+                        lappend pbuf "\n"
+                        set first_line 0
+                        set col 0
+                    }
+                } else {
+                    if {$wantspace} {
+                        lappend pbuf " "
+                        incr col
+                    }
+                }
+                lappend pbuf {*}$wordbuf
+                incr col $wlen
+                set wordbuf {}
+                set wlen 0
+                set wantspace 1
+            }
+            continue
+        }
+        lappend wordbuf $c
+        incr wlen
+    }
+    if {[llength $wordbuf] > 0} {
+        if {$wantspace} {
+            if {$wlen+$col > 56} {
+                lappend pbuf "\n"
+            } else {
+                lappend pbuf " "
+            }
+        }
+        lappend pbuf {*}$wordbuf
+    }
+    return [join $pbuf ""]
 }
 
 proc morji::markup::cloze {cloze {hint {…}}} {
