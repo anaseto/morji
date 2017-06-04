@@ -35,6 +35,11 @@ Specify a custom database file location.
 .El
 .Pp
 Help on key-bindings is available from within the user interface.
+.Pp
+Actions that ask to select or deselect tags use glob pattern matching:
+in particular
+.Sq *
+can be used to mean “any sequence of characters”.
 .Sh FILES
 .Bl -tag -width Ds -compact
 .It Pa "$XDG_CONFIG_HOME/morji/init.tcl"
