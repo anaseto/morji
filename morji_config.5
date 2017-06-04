@@ -19,13 +19,14 @@
 .Nd morji initialization file
 .Sh DESCRIPTION
 The morji initialization file is a Tcl script executed in the namespace
-morji::config.
+.Pa morji::config .
 The following commands are predefined:
 .Bl -tag
 .It Cm markup Ar name type arg
 Define a new markup command named
 .Ar name 
-in the namespace morji::config::markup.
+in the namespace
+.Pa morji::config::markup .
 If the
 .Ar type
 argument is
@@ -71,13 +72,13 @@ The
 .Pa init.tcl
 file can be, for example:
 .Bd -literal -offset indent
-markup important colored red
+markup alert colored red
 markup example styled italic
 set EDITOR /usr/local/bin/vim
 .Ed
 .Pp
 This defines two markup commands
-.Cm important
+.Cm alert
 and
 .Cm example .
 The first uses red coloration and the second italic style, see
@@ -86,6 +87,10 @@ for their usage.
 The third line defines
 .Pa /usr/local/bin/vim
 as the command to run to edit cards.
+.Pp
+More involved markup commands can be defined as Tcl procedures in the
+.Pa markup
+subnamespace.
 .Sh SEE ALSO
 .Xr morji 1 ,
 .Xr morji_facts 5

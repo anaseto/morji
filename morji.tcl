@@ -968,7 +968,7 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
         warn "No external editor configured. Trying vim…"
         set editor vim
     }
-    exec $editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
+    exec {*}$editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
     lassign [parse_card [read $tmp]] question answer notes type tags
     if {$question eq ""} {
         warn "Question field is empty"
