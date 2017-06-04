@@ -681,7 +681,7 @@ proc morji::get_key {prompt} {
     return $key
 }
 
-######################### read line ################ 
+######################### read line utility ################ 
 
 # morji::read_line is a minimal read line function. It interprets only newline,
 # backspace and escape.
