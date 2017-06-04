@@ -11,14 +11,14 @@
 .\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-.Dd Jun 03, 2017
+.Dd Jun 04, 2017
 .Dt MORJI_SYNTAX 5
 .Os
 .Sh NAME
 .Nm morji_facts
-.Nd facts syntax
+.Nd morji facts syntax
 .Sh DESCRIPTION
-The morji database contains a set of facts, encoding question/answer
+The morji database contains a set of facts encoding question/answer
 information.
 Each fact can have one or more cards.
 .Pp
@@ -52,14 +52,17 @@ The @Question: field contains the question text.
 The text can contain markup commands in brackets with the syntax:
 .Cm \&[ Ns Ar cmd args ... Cm \&] .
 The list of arguments is a Tcl list.
-This means that braces and quotes can be used to write arguments with spaces.
-The predefined markup commands are:
-.Bl -tag -width 13n
+This means that braces and quotes can be used to write arguments containing
+spaces.
+Markup commands can easily be defined in morji's initialization file, see
+.Xr morji_config 5 .
+The following markup commands are predefined:
+.Bl -tag -width Ds
 .It Cm em Ar args ...
 This command emphasizes arguments joined with space interleaved.
 .It Cm lbracket , rbracket
 These commands can be used to write literal left and right square brackets.
-.It Cm cloze Ar cloze-text Op Ar hint
+.It Cm cloze Ar cloze-text Ar ?hint?
 This command is used for facts of type
 .Cm cloze .
 The argument
@@ -86,8 +89,8 @@ The @Notes: field contains some additional notes.
 The syntax is the same as with @Question: and @Answer:.
 It is particularly useful for facts of type
 .Cm twoside ,
-because it allows to show in answer the same additional information for the two
-sister-cards.
+because it allows to show in the answer the same additional information for the
+two sister-cards.
 .Pp
 The @Type: field contains the name of the type of the fact.
 .Pp
@@ -104,6 +107,21 @@ Example of fact of type
 @Tags: lojban
 .Ed
 .Pp
+This fact will generate one card with question and answer fields as expected.
+.Pp
+Example of fact of type
+.Cm twoside :
+.Bd -literal -offset indent
+@Question: rememori
+@Answer: se rappeler [quelque chose]
+@Notes:
+@Type: twoside
+@Tags: esperanto-french
+.Ed
+.Pp
+This fact will generate two cards: one from esperanto to french, and another
+from french to esperanto.
+.Pp
 Example of fact of type
 .Cm cloze :
 .Bd -literal -offset indent
@@ -112,6 +130,11 @@ Example of fact of type
 @Type: cloze
 @Tags: euskara
 .Ed
+.Pp
+This fact will generate one card.
+The question will get the hint part of the cloze command: “remember” (in bold between
+square brackets).
+The answer will get the cloze part of the cloze command: “gogoratu”.
 .Sh SEE ALSO
 .Xr morji 1 ,
 .Xr morji_config 5

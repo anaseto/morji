@@ -7,6 +7,9 @@ package require term::ansi::code::ctrl
 package require textutil
 package require cmdline
 
+# TODO: replace [gets stdin] with minimal readline.
+# TODO: custom paragraph justification that accounts for ansi escapes.
+
 ######################### namespace state ################ 
 
 namespace eval morji {
@@ -498,7 +501,7 @@ proc morji::ask_for_initial_grade {fact_uid} {
 }
 
 proc morji::prompt_delete_card {uid} {
-    if {[prompt_confirmation {Delete card}]} {
+    if {[prompt_confirmation {Delete fact (will delete current card and any sister-cards)}]} {
         db eval {SELECT fact_uid FROM cards WHERE uid=$uid} break
         delete_fact $fact_uid
         return restart
@@ -766,7 +769,7 @@ proc morji::put_keys_help {} {
   g      grade card recall as good
   e      grade card recall as easy
   E      edit current card (if any)
-  D      delete current card}
+  D      delete current card's fact}
     put_context_independent_keys_help
 }
 
