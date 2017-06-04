@@ -111,10 +111,11 @@ expect {tag>>}
 ok {select tags}
 send all\n
 expect {>>}
+ok {deselected “all”}
 send t
 expect {Inactive}
 expect {all}
-ok {deselected “all”}
+ok {deselected “all” (verification)}
 send \n
 expect {>>}
 send r

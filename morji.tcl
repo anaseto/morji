@@ -7,7 +7,6 @@ package require term::ansi::code::ctrl
 package require textutil
 package require cmdline
 
-# TODO: replace [gets stdin] with minimal readline.
 # TODO: custom paragraph justification that accounts for ansi escapes.
 
 ######################### namespace state ################ 
@@ -657,7 +656,14 @@ proc morji::get_line {prompt} {
         puts -nonewline "$prompt "
         flush stdout
     }
-    return [gets stdin]
+    
+    ::term::ansi::ctrl::unix::raw
+    try {
+        set line [read_line]
+    } finally {
+        ::term::ansi::ctrl::unix::cooked
+    }
+    return $line
 }
 
 proc morji::get_key {prompt} {
@@ -666,10 +672,47 @@ proc morji::get_key {prompt} {
         flush stdout
     }
     ::term::ansi::ctrl::unix::raw
-    set key [read stdin 1]
-    ::term::ansi::ctrl::unix::cooked
+    try {
+        set key [read stdin 1]
+    } finally {
+        ::term::ansi::ctrl::unix::cooked
+    }
     puts $key
     return $key
+}
+
+######################### read line ################ 
+
+# morji::read_line is a minimal read line function. It interprets only newline,
+# backspace and escape.
+proc morji::read_line {} {
+    set chars {}
+    while {1} {
+        set key [read stdin 1]
+        switch $key {
+            \u0008 - \u007f { ;# backspace
+                if {[llength $chars] > 0} {
+                    set chars [lrange $chars 0 end-1]
+                    send::cb
+                    send::eeol
+                    flush stdout
+                }
+            }
+            \u001b { ;# escape
+                puts ""
+                return ""
+            }
+            \n - \r { ;# newline
+                puts ""
+                return [join $chars ""]
+            }
+            default {
+                lappend chars $key
+                puts -nonewline $key
+                flush stdout
+            }
+        }
+    }
 }
 
 ######################### fact parsing ################ 
