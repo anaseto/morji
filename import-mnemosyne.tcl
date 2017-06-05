@@ -167,63 +167,6 @@ proc tag_pattern {pattern type tag} {
     dict set Patterns $pattern tag $tag
 }
 
-proc morji::check_database {} {
-    puts -nonewline "checking database… "
-    if {![check_all_tag]} {
-        puts stderr "tag 'all' not found for all cards"
-        return 0
-    }
-    if {![check_oneside]} {
-        puts stderr "check oneside"
-        return 0
-    }
-    if {![check_twoside]} {
-        puts stderr "check twoside"
-        return 0
-    }
-    puts "ok"
-    return 1
-}
-
-proc morji::check_all_tag {} {
-    set all_uid [db onecolumn {SELECT uid FROM tags WHERE name='all'}]
-    set uids [db eval {
-        SELECT 1 FROM facts
-        WHERE NOT EXISTS(SELECT 1 FROM fact_tags WHERE fact_uid = facts.uid AND fact_tags.tag_uid=$all_uid)
-    }]
-    if {$uids ne ""} {
-        return 0
-    }
-    return 1
-}
-
-proc morji::check_oneside {} {
-    db eval {SELECT uid FROM facts WHERE type = 'oneside'} {
-        set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
-        if {$count != 1} {
-            return 0
-        }
-    }
-    return 1
-}
-
-proc morji::check_twoside {} {
-    db eval {SELECT uid FROM facts WHERE type = 'twoside'} {
-        set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
-        if {$count != 2} {
-            return 0
-        }
-        set data R
-        db eval {SELECT fact_data FROM cards WHERE fact_uid=$uid} {
-            if {$data ne $fact_data} {
-                return 0
-            }
-            set data P
-        }
-    }
-    return 1
-}
-
 proc gen_db {} {
     global Patterns
     db transaction {
