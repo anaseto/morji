@@ -846,10 +846,10 @@ proc morji::put_text {text} {
     set buf {}
     foreach elt $elts {
         if {[regexp {^\[.*\]$} $elt]} {
-            set cmd [string range $elt 1 end-1]
-            set cmdname [lindex $cmd 0]
-            set args [lrange $cmd 1 end]
             try {
+                set cmd [string range $elt 1 end-1]
+                set cmdname [lindex $cmd 0]
+                set args [lrange $cmd 1 end]
                 if {[namespace which -command morji::markup::$cmdname] ne ""} {
                     lappend buf [morji::markup::$cmdname {*}$args]
                 } else {
@@ -857,7 +857,7 @@ proc morji::put_text {text} {
                     lappend buf [colored red "\[$cmdname $args\]"]
                 }
             } on error {msg} {
-                lappend buf [colored red \[$msg\]]
+                lappend buf [colored red "@@$elt ==> Error: $msg@@"]
             }
         } else {
             lappend buf $elt
