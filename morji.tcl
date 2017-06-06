@@ -26,7 +26,8 @@ namespace eval morji {
     namespace eval config {}
 }
 
-
+# morji::init_state initializes the morji database and the startup time
+# variable.
 proc morji::init_state {{dbfile :memory:}} {
     variables START_TIME
     sqlite3 db $dbfile
@@ -610,6 +611,7 @@ proc morji::handle_base_key {key} {
         r { rename_tag_prompt; return 1 }
         s { show_cards_scheduled_prompt; return 1 }
         S { show_statistics; return 1 }
+        I { import_tsv_facts_prompt; return restart }
         Q { puts ""; return quit }
         ? { put_context_independent_keys_help; return 1 }
     }
@@ -746,6 +748,41 @@ proc morji::check_field {field_contents field} {
     }
 }
 
+# morji::import_tsv_facts imports new facts from a file of tab separated values. Each
+# line should have the following 5 fields: question, answer, notes, type and tags.
+proc morji::import_tsv_facts {file} {
+    set fh [open $file]
+    set content [read $fh]
+    close $fh
+    set lines [split $content \n]
+    set lnum 1
+    foreach line $lines {
+        if {$line eq ""} {
+            continue
+        }
+        set fields [split $line \t]
+        if {[llength $fields] != 5} {
+            error "$file:$lnum: incorrect number of fields: [llength $fields] (should be 5)"
+        }
+        lassign $fields question answer notes type tags
+        if {$type ni {oneside twoside cloze}} {
+            error "$file:$lnum: invalid type: $type"
+        }
+        if {$question eq ""} {
+            warn "$file:$lnum: empty question"
+        }
+        if {$tags eq ""} {
+            warn "$file:$lnum: no tags specified"
+        }
+        try {
+            add_fact $question $answer $notes $type $tags
+        } on error {msg} {
+            error "$file:$lnum: $msg"
+        }
+        incr lnum
+    }
+}
+
 ######################### output stuff ################ 
 
 proc morji::with_color {color script} {
@@ -835,6 +872,7 @@ proc morji::put_context_independent_keys_help {} {
   r      rename a tag
   s      show cards scheduled in the next week
   S      show statistics
+  I      import file of facts with tab separated fields
   Q      quit program}
 }
 
@@ -1176,6 +1214,23 @@ proc morji::show_statistics {} {
     put_stats "Cards memorized today" $learned
 }
 
+######################### import new facts ################
+
+proc morji::import_tsv_facts_prompt {} {
+    set line [get_line "filename >>"]
+    if {$line eq ""} {
+        throw CANCEL {}
+    }
+    if {![file exists $line]} {
+        error "no such file: $line"
+    }
+    import_tsv_facts $line
+    if {![prompt_confirmation "Ok"]} {
+        put_info "Any changes rolled back."
+        throw CANCEL {}
+    }
+}
+
 ######################### database checks ################
 
 # morji::check_database does some sanity checks on the database and returns a
@@ -1194,6 +1249,10 @@ proc morji::check_database {} {
         puts stderr "check twoside failed"
         return 0
     }
+    if {![check_cloze]} {
+        puts stderr "check cloze failed"
+        return 0
+    }
     puts "ok"
     return 1
 }
@@ -1205,6 +1264,7 @@ proc morji::check_all_tag {} {
         WHERE NOT EXISTS(SELECT 1 FROM fact_tags WHERE fact_uid = facts.uid AND fact_tags.tag_uid=$all_uid)
     }]
     if {$uids ne ""} {
+        puts stderr "fact $uid: tag 'all' not found"
         return 0
     }
     return 1
@@ -1214,6 +1274,7 @@ proc morji::check_oneside {} {
     db eval {SELECT uid FROM facts WHERE type = 'oneside'} {
         set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
         if {$count != 1} {
+            puts stderr "fact $uid: bad card count"
             return 0
         }
     }
@@ -1224,14 +1285,43 @@ proc morji::check_twoside {} {
     db eval {SELECT uid FROM facts WHERE type = 'twoside'} {
         set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
         if {$count != 2} {
+            puts stderr "fact $uid: bad card count"
             return 0
         }
         set data R
         db eval {SELECT fact_data FROM cards WHERE fact_uid=$uid} {
             if {$data ne $fact_data} {
+                puts stderr "fact $uid: bad fact_data"
                 return 0
             }
             set data P
+        }
+    }
+    return 1
+}
+
+proc morji::check_cloze {} {
+    db eval {SELECT uid, question FROM facts WHERE type = 'cloze'} {
+        set clozes [get_clozes $question]
+        set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
+        if {$count != $clozes} {
+            puts stderr "fact $uid: bad card count"
+            return 0
+        }
+        set data R
+        set cloze_args
+        foreach cloze $clozes {
+            set cmd [string range $elt 1 end-1]
+            check_cloze_cmd $cmd
+            lappend cloze_args [list $i {*}[lrange $cmd 1 end]]
+        }
+        set fact_datas
+        db eval {SELECT fact_data FROM cards WHERE fact_uid=$uid} {
+            lappend fact_datas $fact_data
+        }
+        if {[lsort $cloze_args] ne [lsort $fact_data]} {
+            puts stderr "fact $uid: card's fact_data and new clozes do not match"
+            return 0
         }
     }
     return 1

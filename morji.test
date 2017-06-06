@@ -15,14 +15,6 @@ namespace eval morji::test {
         return $morji::markup::CLOZE
     } -result 0
 
-    #test init {state vars} -setup {
-        #morji::init_state
-    #} -body {
-        #return "$morji::FIRST_ACTION_FOR_CARD $morji::ANSWER_ALREADY_SEEN"
-    #} -cleanup {
-        #db close
-    #} -result {1 0}
-
     test tables {normal init} -setup {
         morji::init_state
     } -body {
@@ -733,6 +725,40 @@ word word"
     test fmt-2 {format paragraph} -body {
         morji::fmt ""
     } -result {}
+
+    test import_tsv_facts-1 {import tab separated value file} -setup {
+        morji::init_state
+    } -body {
+        morji::import_tsv_facts test_facts.tsv
+        foreach uid {1 2 3} values {
+            {question answer notes oneside}
+            {question2 answer2 notes2 twoside}
+            {{[cloze word hint]} {} notes3 cloze}} {
+            db eval {SELECT * FROM facts WHERE uid=$uid} break
+            foreach k {question answer notes type} v $values {
+                if {[set $k] ne $v} {
+                    return "[set $k]:$v"
+                }
+            }
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
+
+    test import_tsv_facts-2 {import tab separated value file} -setup {
+        morji::init_state
+    } -body {
+        morji::import_tsv_facts test_facts.tsv
+        foreach tag {myonesides mytwosides myclozes} n {1 2 3} {
+            if {![db exists {SELECT 1 FROM tags, fact_tags WHERE name=$tag AND fact_uid=$n AND tag_uid=uid}]} {
+                return "tag $tag not found for fact $n"
+            }
+        }
+        return ok
+    } -cleanup {
+        db close
+    } -result ok
 }
 
 namespace delete morji::test

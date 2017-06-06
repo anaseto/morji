@@ -96,6 +96,12 @@ The @Type: field contains the name of the type of the fact.
 .Pp
 The @Tags: field contains a Tcl list of tags associated with the fact, which
 can be used to organize facts by themes.
+.Ss Importing facts
+morji allows to import facts from a file.
+Each line is a fact and has five tab-separated fields, in order: question,
+answer, notes, type, tags.
+The syntax of each field is the same as with the interactive method of
+introducing new cards.
 .Sh EXAMPLES
 Example of fact of type
 .Cm oneside :

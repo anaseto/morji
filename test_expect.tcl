@@ -79,6 +79,8 @@ expect {Cards memorized today}
 expect {0}
 expect {>>}
 ok {statistics 1 unseen}
+
+# memorize
 send g
 expect {>>}
 ok {grade good}
@@ -96,6 +98,7 @@ send w
 expect {1 0}
 ok {1 scheduled card}
 
+# tags
 expect {>>}
 send t
 expect {Inactive}
@@ -127,8 +130,24 @@ send T
 expect {mynewtag}
 send \n
 
+# import
+expect {>>}
+send I
+expect {filename}
+send test_facts.tsv\n
+expect {Y}
+send Y
+expect {question}
+expect {>>}
+send { }
+expect {answer}
+send g
+expect {question2}
+send { }
+expect {answer2}
+
 # exit
 expect {>>}
 send Q
 
-puts "OK"
+puts "PASS"
