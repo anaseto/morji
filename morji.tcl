@@ -1083,7 +1083,6 @@ proc morji::edit_new_card {} {
         }
         put_card_fields $tmp {} {} {} $type $tags
         flush $tmp
-        seek $tmp 0
         edit_card $tmp $tmpfile
     }
 }
@@ -1095,7 +1094,6 @@ proc morji::edit_existent_card {card_uid} {
         set tags [lsearch -inline -all -not -exact $tags all]
         put_card_fields $tmp $question $answer $notes $type $tags
         flush $tmp
-        seek $tmp 0
         db eval {SELECT fact_uid FROM cards WHERE uid=$card_uid} break
         if {$fact_uid eq ""} {
             error "internal error: edit_existent_card: no fact_uid"
@@ -1114,8 +1112,15 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
         warn "No external editor configured. Trying vim…"
         set editor vim
     }
+    seek $tmp 0
+    set content_before [read $tmp]
     exec {*}$editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
-    lassign [parse_card [read $tmp]] question answer notes type tags
+    seek $tmp 0
+    set content_after [read $tmp]
+    if {$content_before eq $content_after} {
+        throw CANCEL {}
+    }
+    lassign [parse_card $content_after] question answer notes type tags
     if {$question eq ""} {
         warn "Question field is empty"
     }
