@@ -759,6 +759,18 @@ word word"
     } -cleanup {
         db close
     } -result ok
+
+    test check_database {check database} -setup {
+        morji::init_state
+        morji::add_fact "question" "answer" notes oneside {english lojban}
+        morji::add_fact question answer notes twoside mytag
+        morji::add_fact {[cloze a b], [cloze c d], [cloze e f]} {} notes cloze mytag
+    } -body {
+        if {![morji::check_database]} {
+            return "invalid database"
+        }
+        return ok
+    } -result ok
 }
 
 namespace delete morji::test

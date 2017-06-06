@@ -1241,7 +1241,6 @@ proc morji::import_tsv_facts_prompt {} {
 # morji::check_database does some sanity checks on the database and returns a
 # true value if the checks are successful.
 proc morji::check_database {} {
-    puts -nonewline stderr "checking database… "
     if {![check_all_tag]} {
         puts stderr "tag 'all' not found for all cards"
         return 0
@@ -1258,7 +1257,6 @@ proc morji::check_database {} {
         puts stderr "check cloze failed"
         return 0
     }
-    puts "ok"
     return 1
 }
 
@@ -1309,23 +1307,25 @@ proc morji::check_cloze {} {
     db eval {SELECT uid, question FROM facts WHERE type = 'cloze'} {
         set clozes [get_clozes $question]
         set count [db eval {SELECT count(*) FROM cards WHERE fact_uid=$uid}]
-        if {$count != $clozes} {
-            puts stderr "fact $uid: bad card count"
+        if {$count != [llength $clozes]} {
+            puts stderr "fact $uid: bad card count: $count (expected [llength $clozes])"
             return 0
         }
         set data R
-        set cloze_args
+        set cloze_args {}
+        set i 0
         foreach cloze $clozes {
-            set cmd [string range $elt 1 end-1]
+            set cmd [string range $cloze 1 end-1]
             check_cloze_cmd $cmd
             lappend cloze_args [list $i {*}[lrange $cmd 1 end]]
+            incr i
         }
-        set fact_datas
+        set fact_datas {}
         db eval {SELECT fact_data FROM cards WHERE fact_uid=$uid} {
             lappend fact_datas $fact_data
         }
-        if {[lsort $cloze_args] ne [lsort $fact_data]} {
-            puts stderr "fact $uid: card's fact_data and new clozes do not match"
+        if {[lsort $cloze_args] ne [lsort $fact_datas]} {
+            puts stderr "fact $uid: card's fact_data and new clozes do not match: [lsort $cloze_args] vs [lsort $fact_datas]"
             return 0
         }
     }
@@ -1559,7 +1559,7 @@ proc morji::main {} {
         db transaction {
             source $params(x)
             if {![check_database] || ![prompt_confirmation "Ok"]} {
-                error "Any changes rolled back."
+                puts stderr "Any changes rolled back."
             }
         }
         exit 0
