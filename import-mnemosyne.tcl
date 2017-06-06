@@ -1,8 +1,8 @@
-namespace eval morji {
-    variable TEST 1
-    namespace eval test {}
-}
-source -encoding utf-8 morji.tcl
+# This script was used to import a specific set of cards from a mnemosyne
+# database. It is not generic, but could probably be easily be adapted to
+# import other set of cards.
+#
+# Use it with the -x option of morji.
 
 proc add_tag_all {fact_uid} {
     set all_uid [db onecolumn {SELECT uid FROM tags WHERE name='all'}]
@@ -150,12 +150,6 @@ proc clean_text {text pattern} {
     return $text
 }
 
-proc escape_text {text} {
-    regsub -all {\[} $text {<<} text
-    regsub -all {\]} $text {>>} text
-    return $text
-}
-
 proc add_tag_for_pattern {fact_uid pattern} {
     global Patterns
     add_tag_for_fact $fact_uid [dict get $Patterns $pattern tag]
@@ -167,7 +161,7 @@ proc tag_pattern {pattern type tag} {
     dict set Patterns $pattern tag $tag
 }
 
-proc gen_db {} {
+proc import_cards {} {
     global Patterns
     db transaction {
         dict for {pattern data} $Patterns {
@@ -198,13 +192,6 @@ tag_pattern *lidepla* twoside lidepla
 tag_pattern *gismu* twoside gismu
 tag_pattern *personaje* twoside PAO
 
-sqlite3 mnemodb ~/basura/default.db -readonly true
-morji::process_config
-morji::init ~/basura/morji.db
-db eval {INSERT INTO tags(name) VALUES('all')}
-gen_db
-if {![morji::check_database]} {
-    puts stderr "invalid database"
-}
-#set morji::TEST 0
-#morji::start
+sqlite3 mnemodb ~/.local/share/mnemosyne/default.db -readonly true
+db eval {INSERT OR IGNORE INTO tags(name) VALUES('all')}
+import_cards
