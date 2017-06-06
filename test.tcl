@@ -40,13 +40,31 @@ proc morji::big_test {} {
         set j 0
         set interval 0
         for {set j 0} {$j < 500} {incr j} {
-            set cards [get_today_cards]
-            foreach uid $cards {
-                schedule_card $uid good
-            }
             for {set i [expr {$j * 15 + 1}]} {$i < 7000*3 && $i <= ($j+1) * 15} {incr i} {
-                schedule_card $i good
-                incr k
+                set r [expr {rand()}]
+                if {$r < 0.02} {
+                    morji::schedule_card $i hard
+                } elseif {$r < 0.03} {
+                    morji::schedule_card $i easy
+                } elseif {$r < 0.05} {
+                    morji::schedule_card $i again
+                } else {
+                    morji::schedule_card $i good
+                }
+            }
+            set cards [get_today_cards]
+            lappend cards {*}[morji::get_forgotten_cards]
+            foreach uid $cards {
+                set r [expr {rand()}]
+                if {$r < 0.02} {
+                    morji::schedule_card $uid hard
+                } elseif {$r < 0.03} {
+                    morji::schedule_card $uid easy
+                } elseif {$r < 0.05} {
+                    morji::schedule_card $uid again
+                } else {
+                    morji::schedule_card $uid good
+                }
             }
             set START_TIME [clock add $START_TIME 1 day]
         }
@@ -73,6 +91,6 @@ proc morji::debug_misc {} {
     }]]
 }
 
-morji::interactive_test
-#morji::big_test
+#morji::interactive_test
+morji::big_test
 #morji::debug_misc
