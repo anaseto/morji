@@ -755,8 +755,10 @@ proc morji::import_tsv_facts {file} {
     set content [read $fh]
     close $fh
     set lines [split $content \n]
-    set lnum 1
+    set lnum 0
+    set nfacts 0
     foreach line $lines {
+        incr lnum
         if {$line eq ""} {
             continue
         }
@@ -776,11 +778,12 @@ proc morji::import_tsv_facts {file} {
         }
         try {
             add_fact $question $answer $notes $type $tags
+            incr nfacts
         } on error {msg} {
             error "$file:$lnum: $msg"
         }
-        incr lnum
     }
+    puts "Added $nfacts new facts."
 }
 
 ######################### output stuff ################ 
@@ -1559,7 +1562,7 @@ proc morji::main {} {
         db transaction {
             source $params(x)
             if {![check_database] || ![prompt_confirmation "Ok"]} {
-                puts stderr "Any changes rolled back."
+                puts "Any changes rolled back."
             }
         }
         exit 0
