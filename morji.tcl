@@ -374,7 +374,8 @@ proc morji::rename_tag {old_name new_name} {
 ######################### scheduling ################ 
 
 # morji::schedule_card schedules a card using a given grade. It returns
-# "scheduled" on successful operation.
+# "scheduled" on successful operation. It uses a modified version of the SM2
+# algorithm.
 proc morji::schedule_card {uid grade} {
     variable START_TIME
     db eval {SELECT last_rep, next_rep, easiness, reps, fact_uid FROM cards WHERE uid=$uid} break
