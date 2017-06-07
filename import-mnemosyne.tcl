@@ -193,5 +193,5 @@ tag_pattern *gismu* twoside gismu
 tag_pattern *personaje* twoside PAO
 
 sqlite3 mnemodb ~/.local/share/mnemosyne/default.db -readonly true
-db eval {INSERT OR IGNORE INTO tags(name) VALUES('all')}
+db eval {INSERT OR IGNORE INTO tags(name) VALUES('all')}
 import_cards
