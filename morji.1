@@ -11,7 +11,7 @@
 .\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-.Dd Jun 04, 2017
+.Dd Jun 07, 2017
 .Dt MORJI 1
 .Os
 .Sh NAME
@@ -21,6 +21,7 @@
 .Nm
 .Op Fl c Ar config-file
 .Op Fl f Ar dbfile
+.Op Fl x Ar script
 .Sh DESCRIPTION
 .Nm
 is a simple flashcard program for the terminal.
@@ -32,6 +33,12 @@ The options are as follows:
 Specify a custom config file location.
 .It Fl f Ar dbfile
 Specify a custom database file location.
+.It Fl x Ar script
+Execute a script to perform operations on the database with access to functions in the
+.Pa morji::
+namespace.
+.Em Note:
+interface is subject to change.
 .El
 .Pp
 Help on key-bindings is available from within the user interface.
