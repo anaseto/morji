@@ -402,7 +402,7 @@ namespace eval morji::test {
         set day 86400
         for {set i 0} {$i < 300} {incr i} {
             set morji::START_TIME [clock add [clock seconds] [expr {int(rand() * 2 * $day)}] seconds]
-            if {!([morji::start_of_day] > [clock add $morji::START_TIME -1 day])} {
+            if {!([morji::start_of_day] >= [clock add $morji::START_TIME -1 day])} {
                 return "start of day too little for $morji::START_TIME"
             }
         }
@@ -413,7 +413,7 @@ namespace eval morji::test {
         set day 86400
         for {set i 0} {$i < 300} {incr i} {
             set morji::START_TIME [clock add [clock seconds] [expr {int(rand() * 2 * $day)}] seconds]
-            if {!([morji::start_of_day] < $morji::START_TIME)} {
+            if {!([morji::start_of_day] <= $morji::START_TIME)} {
                 return "start of day too big for $morji::START_TIME"
             }
         }
@@ -574,6 +574,27 @@ namespace eval morji::test {
         }
         return ok
     } -result ok
+
+    test scheduling-6 {scheduling late} -setup {
+        morji::init_state
+        set day 86400
+        set morji::START_TIME $day
+        morji::add_fact question answer notes oneside english
+    } -body {
+        morji::schedule_card 1 good
+        db eval {SELECT next_rep FROM cards WHERE uid=1} break
+        set morji::START_TIME $next_rep
+        morji::schedule_card 1 good
+        db eval {SELECT last_rep, next_rep FROM cards WHERE uid=1} break
+        set morji::START_TIME $next_rep
+        set olast_rep $last_rep
+        set morji::START_TIME [clock add $morji::START_TIME 3 days]
+        morji::schedule_card 1 hard
+        db eval {SELECT last_rep, next_rep FROM cards WHERE uid=1} break
+        expr {abs($next_rep-$last_rep)-abs($morji::START_TIME-$olast_rep) < 1.5 * $day}
+    } -cleanup {
+        db close
+    } -result 1
 
     test parse_card-1 {parse card} -body {
         morji::parse_card {@Question: question}
@@ -744,7 +765,7 @@ word word"
         return ok
     } -cleanup {
         db close
-    } -result ok
+    } -result ok -output "Added 3 new facts.\n"
 
     test import_tsv_facts-2 {import tab separated value file} -setup {
         morji::init_state
@@ -758,7 +779,7 @@ word word"
         return ok
     } -cleanup {
         db close
-    } -result ok
+    } -result ok -output "Added 3 new facts.\n"
 
     test check_database {check database} -setup {
         morji::init_state

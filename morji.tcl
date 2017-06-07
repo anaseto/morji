@@ -393,6 +393,8 @@ proc morji::schedule_card {uid grade} {
     switch $grade {
         hard { set easiness [expr {$easiness - 0.15}] }
         easy { set easiness [expr {$easiness + 0.1}] }
+        good - again { }
+        default { error "invalid grade: $grade" }
     }
     if {$easiness < 1.3} {
         set easiness 1.3
@@ -426,7 +428,14 @@ proc morji::schedule_card {uid grade} {
             }
         }
         default {
-            set interval [expr {int(($new_last_rep-$last_rep)*$easiness)}]
+            set late [expr {$new_last_rep - $next_rep}]
+            if {$grade eq "hard" && $late > 2*86400} {
+                # reviewing late and card was hard, so use conservatively again
+                # the same interval
+                set interval [expr {$new_last_rep-$last_rep}]
+            } else {
+                set interval [expr {int(($new_last_rep-$last_rep)*$easiness)}]
+            }
             set new_next_rep [clock add $new_next_rep $interval seconds]
         }
     }
