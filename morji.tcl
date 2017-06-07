@@ -430,8 +430,8 @@ proc morji::schedule_card {uid grade} {
         default {
             set late [expr {$new_last_rep - $next_rep}]
             if {$grade eq "hard" && $late > 2*86400} {
-                # reviewing late and card was hard, so use conservatively again
-                # the same interval
+                # reviewing late and card was hard, so use conservatively the
+                # same interval again
                 set interval [expr {$new_last_rep-$last_rep}]
             } else {
                 set interval [expr {int(($new_last_rep-$last_rep)*$easiness)}]
