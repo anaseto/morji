@@ -514,7 +514,7 @@ namespace eval morji::test {
                                 abs($new_interval($uid) - $interval($uid) - 6 * $day) > 3 * $day} {
                             return "bad interval: $new_interval_days-$interval_days-6 days (expected <= 3 days)"
                         }
-                        if {$interval($uid) > 0 && $reps > 2 && $new_interval_days >= 12 && !($new_interval($uid) > $min_interval)} {
+                        if {$interval($uid) > 0 && $reps > 2 && $new_interval_days >= 12 && !($new_interval($uid) >= $min_interval)} {
                             return "bad interval: $easiness $reps $new_interval_days/$interval_days $min_interval_days (too little)"
                         }
                         if {$interval($uid) > 0 && $reps == 2 && $interval($uid) < 5 && ($new_interval_days < 4 || $new_interval_days > 8)} {
