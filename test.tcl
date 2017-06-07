@@ -40,14 +40,12 @@ proc morji::big_test {} {
         set j 0
         set interval 0
         for {set j 0} {$j < 500} {incr j} {
-            for {set i [expr {$j * 15 + 1}]} {$i < 7000*3 && $i <= ($j+1) * 15} {incr i} {
+            for {set i [expr {$j * 15 + 1}]} {$i < 8000*3 && $i <= ($j+1) * 15} {incr i} {
                 set r [expr {rand()}]
                 if {$r < 0.02} {
                     morji::schedule_card $i hard
                 } elseif {$r < 0.03} {
                     morji::schedule_card $i easy
-                } elseif {$r < 0.05} {
-                    morji::schedule_card $i again
                 } else {
                     morji::schedule_card $i good
                 }
@@ -60,7 +58,7 @@ proc morji::big_test {} {
                     morji::schedule_card $uid hard
                 } elseif {$r < 0.03} {
                     morji::schedule_card $uid easy
-                } elseif {$r < 0.05} {
+                } elseif {$r < 0.08} {
                     morji::schedule_card $uid again
                 } else {
                     morji::schedule_card $uid good
