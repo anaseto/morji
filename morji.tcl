@@ -1337,7 +1337,6 @@ proc morji::check_cloze {} {
             puts stderr "fact $uid: bad card count: $count (expected [llength $clozes])"
             return 0
         }
-        set data R
         set cloze_args {}
         set i 0
         foreach cloze $clozes {
