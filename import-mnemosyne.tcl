@@ -1,6 +1,7 @@
 # This script was used to import a specific set of cards from a mnemosyne
 # database. It is not generic, but could probably be easily be adapted to
-# import other set of cards.
+# import other set of cards. Adapt tag_pattern* definitions at the end and
+# regexp substitutions in clean_text function to your case.
 #
 # Use it with the -x option of morji.
 
@@ -64,9 +65,6 @@ proc do_twoside {tag_pattern} {
             FROM cards WHERE _fact_id = $fact_id
         } break
         lassign [split $answer "\n"] answer notes
-        if {[regexp {rafsi} $answer]} {
-            error "$question@@@$notes@@@$answer"
-        }
         set question [clean_text $question $tag_pattern]
         set answer [clean_text $answer $tag_pattern]
         set notes [clean_text $notes $tag_pattern]
