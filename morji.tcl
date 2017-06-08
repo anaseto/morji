@@ -418,6 +418,7 @@ proc morji::schedule_card {uid grade} {
         set new_next_rep $new_last_rep
         incr reps
     } else {
+        # forgotten card
         set new_last_rep $last_rep
         set new_next_rep $next_rep
         set reps 0
@@ -430,12 +431,15 @@ proc morji::schedule_card {uid grade} {
                 if {$next_rep ne ""} {
                     set new_next_rep [clock add $new_next_rep 2 days]
                 } else {
+                    # unseen card was easy, so probably not really new: give a
+                    # bigger push to the interval.
                     set new_next_rep [clock add $new_next_rep 5 days]
                 }
             }
         }
         2 { 
             set new_next_rep [clock add $new_next_rep 6 day]
+            # some little adjustments for first repetition
             switch $grade {
                 hard { set new_next_rep [clock add $new_next_rep -2 days] }
                 easy { set new_next_rep [clock add $new_next_rep 1 day] }
@@ -457,6 +461,7 @@ proc morji::schedule_card {uid grade} {
         if {![info exists interval]} {
             set interval [expr {$last_rep eq "" ? 0 : $new_next_rep-$new_last_rep}]
         }
+        # randomize a little the interval
         set new_next_rep [
             clock add $new_next_rep [interval_noise $interval] days
         ]
