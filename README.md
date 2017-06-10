@@ -7,15 +7,17 @@ version of the SM2 algorithm taking inspiration from mnemosyne and anki.
 Here is a list of its main features:
 
 + one-sided, two-sided, and cloze deletion card types
-+ Use tags to organize cards by themes and chose material to review or learn
-+ Use your prefered text editor to edit cards
++ Use tags to organize cards by themes and choose material to review or learn
++ Use your preferred text editor to edit cards
 + Simple semantic text markup using colors
 + Simple statistics
 + Importing multiple cards from text file
-+ Storage in a SQLite3 database with simple schema
++ Storage in an SQLite3 database with simple schema
 
 The program, its customization and card syntax creation are explained in the
-(short) manpages morji(1), morji\_config(5) and morji\_facts(5).
+(short) manpages morji(1), morji\_config(5) and morji\_facts(5). Man pages are
+available in html form too in the [morji
+website](https://bardinflor.perso.aquilenet.fr/morji/).
 
 Install
 -------
