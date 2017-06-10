@@ -206,11 +206,11 @@ proc morji::update_cloze_fact {fact_uid question} {
     }
 }
 
-proc get_clozes {question} {
+proc morji::get_clozes {question} {
     return [regexp -inline -all {\[cloze [^\]]*\]} $question]
 }
 
-proc check_cloze_cmd {cmd} {
+proc morji::check_cloze_cmd {cmd} {
     if {[llength $cmd] > 3} {
         warn "More than two arguments in cloze command: \[$cmd\]"
     }
@@ -219,7 +219,7 @@ proc check_cloze_cmd {cmd} {
     }
 }
 
-proc add_tag_for_fact {fact_uid tag} {
+proc morji::add_tag_for_fact {fact_uid tag} {
     set uid [db onecolumn {SELECT uid FROM tags WHERE name=$tag}]
     if {$uid eq ""} {
         db eval {INSERT INTO tags(name) VALUES($tag)}

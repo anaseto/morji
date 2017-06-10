@@ -386,11 +386,11 @@ namespace eval morji::test {
     } -result ok
 
     test get_clozes-1 {get clozes} -body {
-        get_clozes {[cloze a b] [cloze c d] [cloze e {f g}]}
+        morji::get_clozes {[cloze a b] [cloze c d] [cloze e {f g}]}
     } -result {{[cloze a b]} {[cloze c d]} {[cloze e {f g}]}}
 
     test get_clozes-2 {get clozes} -body {
-        get_clozes {[cloze  a b] [cloze "c" d] [cloze e {f g}]}
+        morji::get_clozes {[cloze  a b] [cloze "c" d] [cloze e {f g}]}
     } -result {{[cloze  a b]} {[cloze "c" d]} {[cloze e {f g}]}}
 
     test substcmd {substcmd} -body {
