@@ -17,7 +17,7 @@ Here is a list of its main features:
 The program, its customization and card syntax creation are explained in the
 (short) manpages morji(1), morji\_config(5) and morji\_facts(5). Man pages are
 available in html form too in the [morji
-website](https://bardinflor.perso.aquilenet.fr/morji/).
+website](https://bardinflor.perso.aquilenet.fr/morji/intro-en).
 
 Install
 -------
