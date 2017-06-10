@@ -685,11 +685,8 @@ proc morji::get_line {prompt} {
         flush stdout
     }
     
-    ::term::ansi::ctrl::unix::raw
-    try {
+    with_raw_mode {
         set line [read_line]
-    } finally {
-        ::term::ansi::ctrl::unix::cooked
     }
     return $line
 }
@@ -699,11 +696,8 @@ proc morji::get_key {prompt} {
         puts -nonewline "$prompt "
         flush stdout
     }
-    ::term::ansi::ctrl::unix::raw
-    try {
+    with_raw_mode {
         set key [read stdin 1]
-    } finally {
-        ::term::ansi::ctrl::unix::cooked
     }
     puts $key
     return $key
@@ -864,6 +858,19 @@ proc morji::put_header {title {color yellow}} {
 proc morji::draw_line {} {
     # NOTE: this is suboptimal
     puts [string repeat ─ [::term::ansi::ctrl::unix::columns]]
+}
+
+proc morji::with_raw_mode {script} {
+    set stty [auto_execok stty]
+    set fh [open [string cat "|" [concat $stty "-g"]]]
+    set saved_state [read -nonewline $fh]
+    close $fh
+    exec $stty raw -echo <@stdin
+    try {
+        uplevel $script
+    } finally {
+        exec $stty $saved_state
+    }
 }
 
 ######################### help ################ 
@@ -1145,11 +1152,8 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
     }
     seek $tmp 0
     set content_before [read $tmp]
-    ::term::ansi::ctrl::unix::raw
-    try {
+    with_raw_mode {
         exec {*}$editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
-    } finally {
-        ::term::ansi::ctrl::unix::cooked
     }
     seek $tmp 0
     set content_after [read $tmp]
