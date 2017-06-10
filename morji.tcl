@@ -1145,7 +1145,12 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
     }
     seek $tmp 0
     set content_before [read $tmp]
-    exec {*}$editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
+    ::term::ansi::ctrl::unix::raw
+    try {
+        exec {*}$editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
+    } finally {
+        ::term::ansi::ctrl::unix::cooked
+    }
     seek $tmp 0
     set content_after [read $tmp]
     if {$content_before eq $content_after} {
