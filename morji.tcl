@@ -884,7 +884,7 @@ proc morji::put_keys_help {} {
   h      grade card recall as hard
   g      grade card recall as good
   e      grade card recall as easy
-  E      edit current card (if any)
+  E      edit current card
   D      delete current card's fact}
     put_context_independent_keys_help
 }
@@ -908,7 +908,7 @@ proc morji::put_context_independent_keys_help {} {
   t      select tags with glob pattern
   T      deselect tags with glob pattern
   r      rename a tag
-  s      show cards scheduled in the next week
+  s      show cards scheduled in next days
   S      show statistics
   I      import file of facts with tab separated fields
   Q      quit program}
