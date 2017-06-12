@@ -1234,7 +1234,7 @@ proc morji::find_fact_to_edit {} {
         WHERE question GLOB $pattern OR answer GLOB $pattern OR notes GLOB $pattern
     }]
     if {[llength $facts] == 0} {
-        puts "No facts corresponding to pattern found"
+        puts "Found no facts corresponding to pattern"
         throw CANCEL {}
     }
     if {[info exists config::FUZZY_FINDER]} {
