@@ -1,10 +1,10 @@
 #!/usr/bin/env tclsh8.6
 # Copyright (c) 2017 Yon <anaseto@bardinflor.perso.aquilenet.fr>
-# 
+#
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
 # WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
 # MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -20,7 +20,7 @@ package require term::ansi::code::ctrl
 package require textutil
 package require cmdline
 
-######################### namespace state ################ 
+######################### namespace state ################
 
 namespace eval morji {
     ::term::ansi::send::import
@@ -92,7 +92,7 @@ proc morji::init_state {{dbfile :memory:}} {
     set START_TIME [clock seconds]
 }
 
-######################### managing facts ################ 
+######################### managing facts ################
 
 # morji::add_fact adds a new fact to the database. It generates needed cards.
 proc morji::add_fact {question answer notes type {tags {}}} {
@@ -242,7 +242,7 @@ proc morji::update_tags_for_fact {fact_uid tags} {
             add_tag_for_fact $fact_uid $tag
         }
     }
-    # removed tags 
+    # removed tags
     foreach tag $otags {
         if {$tag eq "all"} {
             continue
@@ -270,7 +270,7 @@ proc morji::delete_fact {fact_uid} {
     remove_orphaned_tags
 }
 
-######################### getting cards and fact data ################ 
+######################### getting cards and fact data ################
 
 # morji::start_of_day returns the date corresponding the start of a day for
 # morji, which is at 2AM.
@@ -365,7 +365,7 @@ proc morji::get_card_fact_uid {uid} {
     return [db onecolumn {SELECT fact_uid FROM cards WHERE uid=$uid}]
 }
 
-######################### tag functions ################ 
+######################### tag functions ################
 
 proc morji::get_tags {} {
     return [db eval {SELECT name FROM tags ORDER BY name}]
@@ -391,7 +391,7 @@ proc morji::rename_tag {old_name new_name} {
     db eval {UPDATE tags SET name=$new_name WHERE name=$old_name}
 }
 
-######################### scheduling ################ 
+######################### scheduling ################
 
 # morji::schedule_card schedules a card using a given grade. It returns
 # "scheduled" on successful operation. It uses a modified version of the SM2
@@ -432,7 +432,7 @@ proc morji::schedule_card {uid grade} {
     }
     switch $reps {
         0 {}
-        1 { 
+        1 {
             set new_next_rep [clock add $new_next_rep 1 day]
             if {$grade eq "easy"} {
                 if {$next_rep ne ""} {
@@ -444,7 +444,7 @@ proc morji::schedule_card {uid grade} {
                 }
             }
         }
-        2 { 
+        2 {
             set new_next_rep [clock add $new_next_rep 6 day]
             # some little adjustments for first repetition
             switch $grade {
@@ -505,18 +505,18 @@ proc morji::interval_noise {interval} {
     return [expr {int($noise / $day)}]
 }
 
-######################### prompts ################ 
+######################### prompts ################
 
 proc morji::ask_for_initial_grade {fact_uid} {
     set uids [db eval {SELECT uid FROM cards WHERE fact_uid=$fact_uid}]
     set key [get_key "(initial grade) >>"]
     switch $key {
         a { return scheduled }
-        g { 
+        g {
             foreach card_uid $uids {schedule_card $card_uid good}
             return scheduled
         }
-        e { 
+        e {
             foreach card_uid $uids {schedule_card $card_uid easy}
             return scheduled
         }
@@ -546,7 +546,7 @@ proc morji::prompt_confirmation {prompt} {
         switch $key {
             Y { return 1 }
             n { return 0 }
-            ? { 
+            ? {
                 put_header Keys cyan
                 puts {Type “Y” to confirm, or “n” to cancel.}
             }
@@ -569,12 +569,12 @@ proc morji::card_prompt {card_uid} {
     }
     set key [get_key ">>"]
     switch $key {
-        q { 
+        q {
             put_tags $type [get_card_tags $card_uid]
             put_question $question $answer $type $fact_data;
             return
         }
-        " " { 
+        " " {
             put_answer $question $answer $notes $type $fact_data
             set ANSWER_ALREADY_SEEN 1
             return
@@ -679,7 +679,7 @@ proc morji::show_cards_scheduled_prompt {} {
         w { set days 7 }
         m { set days 30 }
         y { set days 365 }
-        default { 
+        default {
             error "invalid key: $key. Valid keys: w (7 days), m (30 days) and y (365 days)"
         }
     }
@@ -691,7 +691,7 @@ proc morji::get_line {prompt} {
         puts -nonewline "$prompt "
         flush stdout
     }
-    
+
     with_raw_mode {
         set line [read_line]
     }
@@ -710,7 +710,7 @@ proc morji::get_key {prompt} {
     return $key
 }
 
-######################### read line utility ################ 
+######################### read line utility ################
 
 # morji::read_line is a minimal read line function. It interprets only newline,
 # backspace and escape.
@@ -744,7 +744,7 @@ proc morji::read_line {} {
     }
 }
 
-######################### fact parsing ################ 
+######################### fact parsing ################
 
 # morji::parse_cards parses card data and returns a list with data. The order
 # is: question, answer, notes, type, tags.
@@ -815,11 +815,11 @@ proc morji::import_tsv_facts {file} {
     puts "Added $nfacts new facts."
 }
 
-######################### output stuff ################ 
+######################### output stuff ################
 
 proc morji::with_color {color script} {
     send::sda_fg$color
-    try { 
+    try {
         uplevel $script
     } finally {
         send::sda_fgdefault
@@ -828,7 +828,7 @@ proc morji::with_color {color script} {
 
 proc morji::with_style {style script} {
     send::sda_$style
-    try { 
+    try {
         uplevel $script
     } finally {
         send::sda_no$style
@@ -880,7 +880,7 @@ proc morji::with_raw_mode {script} {
     }
 }
 
-######################### help ################ 
+######################### help ################
 
 proc morji::put_keys_help {} {
     put_header {Keys (on current card)} cyan
@@ -921,7 +921,7 @@ proc morji::put_context_independent_keys_help {} {
   Q      quit program}
 }
 
-######################### text rendering ################ 
+######################### text rendering ################
 
 # morji::put_text renders a text paragraph with markup tags.
 proc morji::put_text {text} {
@@ -1098,7 +1098,7 @@ proc morji::put_answer {question answer notes type fact_data} {
     }
 }
 
-######################### cards editing ################ 
+######################### cards editing ################
 
 proc morji::put_card_fields {ch {question {}} {answer {}} {notes {}} {type {}} {tags {}}} {
     puts $ch "@Question: $question"
@@ -1250,7 +1250,7 @@ proc morji::find_fact_to_edit {} {
             with_tempfile tmp_result tmpfile_result {
                 try {
                     with_raw_mode {
-                        exec -ignorestderr {*}$config::FUZZY_FINDER <$tmpfile 2>@stderr >>$tmpfile_result 
+                        exec -ignorestderr {*}$config::FUZZY_FINDER <$tmpfile 2>@stderr >>$tmpfile_result
                     }
                 } on error {msg} {
                     # It is not possible in general to determine if it is
@@ -1292,7 +1292,7 @@ proc morji::put_fact_rows {facts {out ""}} {
     }
 }
 
-######################### stats ################ 
+######################### stats ################
 
 proc morji::put_stats {key value} {
     put_header $key cyan
