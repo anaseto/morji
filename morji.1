@@ -11,7 +11,7 @@
 .\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-.Dd Jun 07, 2017
+.Dd Jun 12, 2017
 .Dt MORJI 1
 .Os
 .Sh NAME
@@ -48,6 +48,9 @@ Actions that ask to select or deselect tags use glob pattern matching:
 in particular
 .Sq *
 can be used to mean “any sequence of characters”.
+The find action uses glob pattern matching too, but
+.Sq *
+is implicitly added at the start and at the end of the pattern.
 .Sh FILES
 .Bl -tag -width Ds -compact
 .It Pa "$XDG_CONFIG_HOME/morji/init.tcl"

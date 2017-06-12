@@ -11,6 +11,7 @@ Here is a list of its main features:
 + Use your preferred text editor to edit cards
 + Simple semantic text markup using colors
 + Simple statistics
++ Find facts to edit with a pattern
 + Importing multiple cards from text file
 + Storage in an SQLite3 database with simple schema
 

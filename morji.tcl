@@ -347,15 +347,22 @@ proc morji::get_fact_user_info {uid} {
     }]
 }
 
-proc morji::get_card_tags {uid} {
+proc morji::get_fact_tags {uid} {
     return [db eval {
         SELECT name FROM tags
         WHERE EXISTS(
-            SELECT 1 FROM cards, fact_tags
-            WHERE cards.uid=$uid
-            AND fact_tags.fact_uid = cards.fact_uid
+            SELECT 1 FROM fact_tags
+            WHERE fact_tags.fact_uid=$uid
             AND tag_uid = tags.uid)
     }]
+}
+
+proc morji::get_card_tags {uid} {
+    return [get_fact_tags [get_card_fact_uid $uid]]
+}
+
+proc morji::get_card_fact_uid {uid} {
+    return [db onecolumn {SELECT fact_uid FROM cards WHERE uid=$uid}]
 }
 
 ######################### tag functions ################ 
@@ -528,8 +535,7 @@ proc morji::ask_for_initial_grade {fact_uid} {
 
 proc morji::prompt_delete_card {uid} {
     if {[prompt_confirmation {Delete fact (will delete current card and any sister-cards)}]} {
-        db eval {SELECT fact_uid FROM cards WHERE uid=$uid} break
-        delete_fact $fact_uid
+        delete_fact [get_card_fact_uid $uid]
         return restart
     }
 }
@@ -639,6 +645,7 @@ proc morji::handle_base_key {key} {
         r { rename_tag_prompt; return 1 }
         s { show_cards_scheduled_prompt; return 1 }
         S { show_statistics; return 1 }
+        f { find_fact_to_edit; return restart }
         I { import_tsv_facts_prompt; return restart }
         Q { puts ""; return quit }
         ? { put_context_independent_keys_help; return 1 }
@@ -1126,16 +1133,17 @@ proc morji::edit_new_card {} {
 }
 
 proc morji::edit_existent_card {card_uid} {
+    set fact_uid [get_card_fact_uid $card_uid]
+    edit_existent_fact $fact_uid
+}
+
+proc morji::edit_existent_fact {fact_uid} {
     with_tempfile tmp tmpfile {
-        lassign [get_card_user_info $card_uid] question answer notes type
-        set tags [get_card_tags $card_uid]
+        db eval {SELECT question, answer, notes, type FROM facts WHERE uid=$fact_uid} break
+        set tags [get_fact_tags $fact_uid]
         set tags [lsearch -inline -all -not -exact $tags all]
         put_card_fields $tmp $question $answer $notes $type $tags
         flush $tmp
-        db eval {SELECT fact_uid FROM cards WHERE uid=$card_uid} break
-        if {$fact_uid eq ""} {
-            error "internal error: edit_existent_card: no fact_uid"
-        }
         edit_card $tmp $tmpfile $fact_uid
     }
 }
@@ -1153,7 +1161,7 @@ proc morji::edit_card {tmp tmpfile {fact_uid {}}} {
     seek $tmp 0
     set content_before [read $tmp]
     with_raw_mode {
-        exec {*}$editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
+        exec -ignorestderr {*}$editor [file normalize $tmpfile] <@stdin >@stdout 2>@stderr
     }
     seek $tmp 0
     set content_after [read $tmp]
@@ -1212,6 +1220,75 @@ proc morji::show_fact {fact_uid tags} {
             Question - Answer - Notes { put_text $f }
             default { puts $f }
         }
+    }
+}
+
+proc morji::find_fact_to_edit {} {
+    set pattern [get_line "(glob pattern) >>"]
+    if {$pattern eq ""} {
+        throw CANCEL
+    }
+    set pattern "*$pattern*"
+    set facts [db eval {
+        SELECT uid, question, answer, notes FROM facts
+        WHERE question GLOB $pattern OR answer GLOB $pattern OR notes GLOB $pattern
+    }]
+    if {[llength $facts] == 0} {
+        puts "No facts corresponding to pattern found"
+        throw CANCEL {}
+    }
+    if {[info exists config::FUZZY_FINDER]} {
+        set fuzzy $config::FUZZY_FINDER
+    } else {
+        set fuzzy {}
+    }
+
+    set fact_uid {}
+    if {$fuzzy ne ""} {
+        with_tempfile tmp tmpfile {
+            put_fact_rows $facts $tmp
+            with_tempfile tmp_result tmpfile_result {
+                try {
+                    with_raw_mode {
+                        exec -ignorestderr {*}$config::FUZZY_FINDER <$tmpfile 2>@stderr >>$tmpfile_result 
+                    }
+                } on error {msg} {
+                    # It is not possible in general to determine if it is
+                    # really an error, or just a canceled operation.
+                    throw CANCEL {}
+                }
+                set row [read -nonewline $tmp_result]
+            }
+            lassign [split $row |] fact_uid
+        }
+    }
+    if {$fact_uid eq ""} {
+        put_fact_rows $facts
+        set fact_uid [get_line "(choose fact number) >>"]
+        if {$fact_uid eq ""} {
+            throw CANCEL {}
+        }
+    }
+    if {[db exists {SELECT 1 FROM facts WHERE uid=$fact_uid}]} {
+        edit_existent_fact $fact_uid
+    } else {
+        error "invalid fact number: $fact_uid"
+    }
+}
+
+proc morji::put_fact_rows {facts {out ""}} {
+    foreach {uid question answer notes} $facts {
+        foreach field {question answer notes} {
+            regsub -all {\s} [set $field] { } $field
+        }
+        if {$out eq ""} {
+            puts "$uid|$question|$answer|$notes"
+        } else {
+            puts $out "$uid|$question|$answer|$notes"
+        }
+    }
+    if {$out ne ""} {
+        flush $out
     }
 }
 

@@ -11,7 +11,7 @@
 .\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-.Dd Jun 04, 2017
+.Dd Jun 12, 2017
 .Dt MORJI_CONFIG 5
 .Os
 .Sh NAME
@@ -67,6 +67,12 @@ variable can be set to define the external command to use for editing commands.
 .Em Note:
 If this variable is not defined, the environment variable of the same name is
 used.
+.Pp
+The
+.Cm FUZZY_FINDER
+variable can be set to an external fuzzy finder for use in the fact finding
+action to interactively select a fact, in place of entering manually the fact
+number.
 .Sh EXAMPLES
 The
 .Pa init.tcl

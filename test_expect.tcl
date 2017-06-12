@@ -146,6 +146,14 @@ expect {question2}
 send { }
 expect {answer2}
 
+# find facts
+send f
+expect {pattern}
+send question\n
+expect {1|question}
+expect {fact number}
+send 1\n
+
 # exit
 expect {>>}
 send Q
