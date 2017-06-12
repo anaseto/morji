@@ -914,6 +914,7 @@ proc morji::put_context_independent_keys_help {} {
   N      new card
   t      select tags with glob pattern
   T      deselect tags with glob pattern
+  f      find a fact to edit with glob pattern
   r      rename a tag
   s      show cards scheduled in next days
   S      show statistics
