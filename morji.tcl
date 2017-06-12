@@ -1226,7 +1226,7 @@ proc morji::show_fact {fact_uid tags} {
 proc morji::find_fact_to_edit {} {
     set pattern [get_line "(glob pattern) >>"]
     if {$pattern eq ""} {
-        throw CANCEL
+        throw CANCEL {}
     }
     set pattern "*$pattern*"
     set facts [db eval {
