@@ -463,8 +463,11 @@ namespace eval morji::test {
                         }
                     }
                     set reps_after [db eval {SELECT reps FROM cards WHERE uid=$i}]
-                    if {$reps_after != $reps_before + 1} {
+                    if {!($r < 0.05 && $r >= 0.03) && $reps_after != $reps_before + 1} {
                         return "bad reps after first schedule"
+                    }
+                    if {($r < 0.05 && $r >= 0.03) && $reps_after != $reps_before + 2} {
+                        return "bad reps after first easy schedule"
                     }
                     db eval {SELECT last_rep, next_rep, reps FROM cards WHERE uid=$i} {
                         set interval($i) [expr {$next_rep-$last_rep}] 

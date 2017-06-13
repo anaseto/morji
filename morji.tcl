@@ -438,9 +438,10 @@ proc morji::schedule_card {uid grade} {
                 if {$next_rep ne ""} {
                     set new_next_rep [clock add $new_next_rep 2 days]
                 } else {
-                    # unseen card was easy, so probably not really new: give a
-                    # bigger push to the interval.
+                    # unseen card was easy, so probably not really new: skip
+                    # first repetition.
                     set new_next_rep [clock add $new_next_rep 5 days]
+                    incr reps
                 }
             }
         }
