@@ -14,7 +14,6 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 package require sqlite3
-package require term::ansi::ctrl::unix
 package require term::ansi::send
 package require term::ansi::code::ctrl
 package require textutil
@@ -865,7 +864,7 @@ proc morji::put_header {title {color yellow}} {
 
 proc morji::draw_line {} {
     # NOTE: this is suboptimal
-    puts [string repeat ─ [::term::ansi::ctrl::unix::columns]]
+    puts [string repeat ─ 60]
 }
 
 proc morji::with_raw_mode {script} {
