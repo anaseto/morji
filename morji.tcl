@@ -542,19 +542,10 @@ proc morji::prompt_delete_card {uid} {
 
 proc morji::prompt_confirmation {prompt} {
     while {1} {
-        set key [get_key "$prompt? \[Y/n\] >>"]
+        set key [get_key "$prompt? \[y/N\] >>"]
         switch $key {
-            Y { return 1 }
-            n { return 0 }
-            ? {
-                put_header Keys cyan
-                puts {Type “Y” to confirm, or “n” to cancel.}
-            }
-            default {
-                with_color red {
-                    puts "Error: invalid key: $key (type ? for help)"
-                }
-            }
+            Y - y { return 1 }
+            default { return 0 }
         }
     }
 }

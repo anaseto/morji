@@ -66,7 +66,7 @@ expect {answer}
 expect {>>}
 ok {show answer}
 send E
-expect {Y/n}
+expect {y/N}
 send Y
 ok confirm
 expect {>>}
@@ -135,7 +135,7 @@ expect {>>}
 send I
 expect {filename}
 send test_facts.tsv\n
-expect {Y}
+expect {y/N}
 send Y
 expect {question}
 expect {>>}
