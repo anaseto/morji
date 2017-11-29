@@ -509,7 +509,7 @@ proc morji::interval_noise {interval} {
 
 proc morji::ask_for_initial_grade {fact_uid} {
     set uids [db eval {SELECT uid FROM cards WHERE fact_uid=$fact_uid}]
-    set key [get_key "(initial grade, type ? for help) >>"]
+    set key [get_key "initial grade (type ? for help)>>"]
     switch $key {
         a { return scheduled }
         g {
@@ -665,13 +665,20 @@ proc morji::rename_tag_prompt {} {
 }
 
 proc morji::show_cards_scheduled_prompt {} {
-    set key [get_key "cards scheduled (w/m/y)>>"]
+    set key [get_key "cards scheduled \[w/m/y\] (? for help)>>"]
     switch $key {
         w { set days 7 }
         m { set days 30 }
         y { set days 365 }
+        ? {
+            puts "Keys: w (7 days), m (30 days) and y (365 days)"
+            tailcall show_cards_scheduled_prompt
+        }
         default {
-            error "invalid key: $key. Valid keys: w (7 days), m (30 days) and y (365 days)"
+            with_color red {
+                puts "Error: invalid key: $key (type ? for help)."
+            }
+            tailcall show_cards_scheduled_prompt
         }
     }
     show_cards_scheduled_next_days $days
