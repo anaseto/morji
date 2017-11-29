@@ -509,7 +509,7 @@ proc morji::interval_noise {interval} {
 
 proc morji::ask_for_initial_grade {fact_uid} {
     set uids [db eval {SELECT uid FROM cards WHERE fact_uid=$fact_uid}]
-    set key [get_key "(initial grade) >>"]
+    set key [get_key "(initial grade, type ? for help) >>"]
     switch $key {
         a { return scheduled }
         g {
