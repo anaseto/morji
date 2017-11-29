@@ -51,7 +51,7 @@ Facts are written using the following syntax:
 The @Question: field contains the question text.
 The text can contain markup commands in brackets with the syntax:
 .Cm \&[ Ns Ar cmd args ... Cm \&] .
-The list of arguments is a Tcl list.
+The list of arguments is a Tcl list (space separated items).
 This means that braces and quotes can be used to write arguments containing
 spaces.
 Markup commands can easily be defined in morji's initialization file, see
@@ -94,8 +94,8 @@ two sister-cards.
 .Pp
 The @Type: field contains the name of the type of the fact.
 .Pp
-The @Tags: field contains a Tcl list of tags associated with the fact, which
-can be used to organize facts by themes.
+The @Tags: field contains a Tcl list (space separated items) of tags associated
+with the fact, which can be used to organize facts by themes.
 .Ss Importing facts
 morji allows to import facts from a file.
 Each line is a fact and has five tab-separated fields, in order: question,
