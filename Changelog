@@ -1,3 +1,7 @@
+v0.3:
+  + standardised confirmation [y/N] prompt
+  + more hints for keys help, and minor ui improvements 
+
 v0.2:
   + new key-binding "f" for finding a card to edit with a pattern
   + some minor tweaks
