@@ -1641,6 +1641,7 @@ proc morji::main {} {
         {c.arg "" "custom config file location"}
         {f.arg "" "custom database file location"}
         {x.arg "" "name of script to execute"}
+        {v "" "show version"}
     }
     set usage ": morji \[-c config-file\] \[-f db-file\]\nOptions:"
     try {
@@ -1648,6 +1649,10 @@ proc morji::main {} {
     } trap {CMDLINE USAGE} {msg} {
         puts stderr $msg
         exit 1
+    }
+    if {$params(v)} {
+        puts "v0.3"
+        exit 0
     }
     if {$params(c) ne ""} {
         if {[file exists $params(c)]} {
