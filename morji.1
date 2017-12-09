@@ -11,7 +11,7 @@
 .\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-.Dd Dec 06, 2017
+.Dd Dec 09, 2017
 .Dt MORJI 1
 .Os
 .Sh NAME
@@ -19,8 +19,11 @@
 .Nd simple flashcard program
 .Sh SYNOPSIS
 .Nm
+.Op Fl n
+.Op Fl v
 .Op Fl c Ar config-file
 .Op Fl f Ar dbfile
+.Op Fl w Ar width
 .Op Fl x Ar script
 .Sh DESCRIPTION
 .Nm
@@ -33,6 +36,12 @@ The options are as follows:
 Specify a custom config file location.
 .It Fl f Ar dbfile
 Specify a custom database file location.
+.It Fl n
+Do not clear screen at each card revision.
+.It Fl v
+Show version number.
+.It Fl w Ar width
+Set text width for question/answers.
 .It Fl x Ar script
 Execute a Tcl script to perform operations on the database with access to
 functions in the
@@ -40,8 +49,6 @@ functions in the
 namespace.
 .Em Note:
 interface is subject to change.
-.It Fl v
-Show version number.
 .El
 .Pp
 Help on key-bindings is available from within the user interface.

@@ -29,7 +29,9 @@ namespace eval morji {
         }
     }
 
-    variables START_TIME FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN TEST
+    variables START_TIME FIRST_ACTION_FOR_CARD ANSWER_ALREADY_SEEN TEST TEXT_WIDTH NO_CLEAR_SCREEN
+    set TEXT_WIDTH 56
+    set NO_CLEAR_SCREEN 0
     namespace eval markup {
         # index of current card's cloze
         variable CLOZE 0
@@ -670,6 +672,9 @@ proc morji::show_cards_scheduled_prompt {} {
         w { set days 7 }
         m { set days 30 }
         y { set days 365 }
+        \u001b - \n - \r {
+            return
+        }
         ? {
             puts "Keys: w (7 days), m (30 days) and y (365 days)"
             tailcall show_cards_scheduled_prompt
@@ -861,8 +866,9 @@ proc morji::put_header {title {color yellow}} {
 }
 
 proc morji::draw_line {} {
+    variable TEXT_WIDTH
     # NOTE: this is suboptimal
-    puts [string repeat ─ 60]
+    puts [string repeat ─ $TEXT_WIDTH]
 }
 
 proc morji::with_raw_mode {script} {
@@ -950,6 +956,7 @@ proc morji::put_text {text} {
 
 # morji::fmt formats a paragraph $text with first line indentation $indent.
 proc morji::fmt {text {indent 0}} {
+    variable TEXT_WIDTH
     set chars [split $text ""]
     set col 0
     set wantspace 0
@@ -977,7 +984,7 @@ proc morji::fmt {text {indent 0}} {
         }
         if {[string is space $c] && $c ne "\xa0"} {
             if {$wlen > 0} {
-                if {$col+$wlen > ($first_line ? 56 - $indent : 56)} {
+                if {$col+$wlen > ($first_line ? $TEXT_WIDTH - $indent : $TEXT_WIDTH)} {
                     if {$wantspace} {
                         lappend pbuf "\n"
                         set first_line 0
@@ -1002,7 +1009,7 @@ proc morji::fmt {text {indent 0}} {
     }
     if {[llength $wordbuf] > 0} {
         if {$wantspace} {
-            if {$wlen+$col > 56} {
+            if {$wlen+$col > $TEXT_WIDTH} {
                 lappend pbuf "\n"
             } else {
                 lappend pbuf " "
@@ -1458,7 +1465,10 @@ proc morji::put_phase_info {phase n} {
 }
 
 proc morji::put_screen_start {} {
-    send::clear
+    variable NO_CLEAR_SCREEN
+    if {!$NO_CLEAR_SCREEN} {
+        send::clear
+    }
     puts "Type ? for help."
 }
 
@@ -1637,13 +1647,16 @@ proc morji::init {{dbfile :memory:}} {
 }
 
 proc morji::main {} {
+    variables TEXT_WIDTH NO_CLEAR_SCREEN
     set options {
         {c.arg "" "custom config file location"}
         {f.arg "" "custom database file location"}
-        {x.arg "" "name of script to execute"}
+        {n "" "no screen clear"}
         {v "" "show version"}
+        {w.arg "" "text width"}
+        {x.arg "" "name of script to execute"}
     }
-    set usage ": morji \[-c config-file\] \[-f db-file\]\nOptions:"
+    set usage ": morji \[-n\] \[v\] \[-c config-file\] \[-f db-file\] \[-w width\] \[-x script-file\]\nOptions:"
     try {
         array set params [::cmdline::getoptions ::argv $options $usage]
     } trap {CMDLINE USAGE} {msg} {
@@ -1674,6 +1687,15 @@ proc morji::main {} {
             exit 1
         }
         init $dbfile
+    }
+    if {($params(w) ne "") && [string is integer $params(w)]} {
+        set TEXT_WIDTH $params(w)
+        if {$TEXT_WIDTH < 30} {
+            set TEXT_WIDTH 30
+        }
+    }
+    if {$params(n)} {
+        set NO_CLEAR_SCREEN 1
     }
     if {$params(x) ne ""} {
         db transaction {

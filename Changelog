@@ -1,3 +1,9 @@
+v0.4:
+  + add option -n for no clearing of screen
+  + add option -w for text width
+  + minor ui improvement in “scheduled cards” prompt (make esc and enter
+    return to main prompt)
+
 v0.3:
   + standardised confirmation [y/N] prompt
   + more hints for keys help, and minor ui improvements 
