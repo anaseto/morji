@@ -1236,8 +1236,11 @@ proc morji::find_fact_to_edit {} {
     }
     set pattern "*$pattern*"
     set facts [db eval {
-        SELECT uid, question, answer, notes FROM facts
-        WHERE question GLOB $pattern OR answer GLOB $pattern OR notes GLOB $pattern
+        SELECT facts.uid, question, answer, notes FROM facts, tags, fact_tags
+        WHERE tags.uid = fact_tags.tag_uid
+        AND facts.uid = fact_tags.fact_uid
+        AND tags.active = 1
+        AND (question GLOB $pattern OR answer GLOB $pattern OR notes GLOB $pattern)
     }]
     if {[llength $facts] == 0} {
         puts "Found no facts corresponding to pattern"
