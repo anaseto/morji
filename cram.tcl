@@ -261,5 +261,5 @@ bind . Q {
     exit
 }
 bind . g { within_transaction {if {$showed_answer == 1} {update_recalled_card}} }
-bind . a { within_transaction {update_forgotten_card} }
+bind . a { within_transaction {if {$showed_answer == 1} {update_forgotten_card}} }
 bind . <space> { within_transaction {show_answer} }
