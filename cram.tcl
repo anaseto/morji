@@ -18,12 +18,13 @@ package require sqlite3
 package require cmdline
 
 set options {
-    {s "short review (first presentation + 1 review round at 10 min)"}
-    {l "long session (5 review rounds, 1 hour interval for last review)"}
+    {l "" "long session (5 review rounds, 1 hour interval for last review)"}
+    {r "" "short review (first presentation + 1 review round at 10 min)"}
 }
-set usage "\[-hand factor\] file"
+set usage ": cram.tcl \[-r\] \[-l\] file"
 try {
     array set params [::cmdline::getoptions argv $options $usage]
+    puts [array get params]
 } trap {CMDLINE USAGE} {msg} {
     puts stderr "Usage: $msg"
     exit 1
@@ -33,7 +34,7 @@ if {[llength $argv] != 1} {
     exit 1
 }
 set rounds 4
-if {$params(s)} {
+if {$params(r)} {
     set rounds 1
 } elseif {$params(l)} {
     set rounds 5
@@ -154,6 +155,10 @@ proc next_card {} {
             if {[llength $cur_hand] > 1} {
                 # avoid showing the same card twice in a row
                 set cur_hand [lreplace $cur_hand 0 1 [lindex $cur_hand 1] [lindex $cur_hand 0]]
+            }
+            if {[llength $cur_hand] > 3} {
+                # some sane shuffling when out of schedule
+                set cur_hand [lreplace $cur_hand 2 3 [lindex $cur_hand 3] [lindex $cur_hand 2]]
             }
             set last_mode "reviewing"
         }
