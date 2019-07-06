@@ -112,7 +112,6 @@ proc update_recalled_card {} {
     global cur_card_uid
     lassign [get_card $cur_card_uid] question answer reps next_rep
     set next_rep [clock add [clock seconds] [interval $reps] seconds]
-    puts [interval $reps]
     incr reps
     db eval {UPDATE cards SET reps=$reps WHERE uid=$cur_card_uid}
     db eval {UPDATE cards SET next_rep=$next_rep WHERE uid=$cur_card_uid}
