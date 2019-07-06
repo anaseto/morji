@@ -24,7 +24,6 @@ set options {
 set usage ": cram.tcl \[-r\] \[-l\] file"
 try {
     array set params [::cmdline::getoptions argv $options $usage]
-    puts [array get params]
 } trap {CMDLINE USAGE} {msg} {
     puts stderr "Usage: $msg"
     exit 1
@@ -35,9 +34,12 @@ if {[llength $argv] != 1} {
 }
 set rounds 4
 if {$params(r)} {
-    set rounds 1
+    puts "Short review"
 } elseif {$params(l)} {
+    puts "Long session"
     set rounds 5
+} else {
+    puts "Normal session"
 }
 set study_table_path [lindex $argv 0]
 
@@ -97,10 +99,6 @@ proc get_card {uid} {
 }
 
 proc interval {rep} {
-    global rounds
-    if {$rounds == 1 && $rep == 0} {
-        return 600
-    }
     switch $rep {
         0   { return 5 }
         1   { return 25 }
@@ -114,9 +112,11 @@ proc update_recalled_card {} {
     global cur_card_uid
     lassign [get_card $cur_card_uid] question answer reps next_rep
     set next_rep [clock add [clock seconds] [interval $reps] seconds]
+    puts [interval $reps]
     incr reps
     db eval {UPDATE cards SET reps=$reps WHERE uid=$cur_card_uid}
     db eval {UPDATE cards SET next_rep=$next_rep WHERE uid=$cur_card_uid}
+    puts "Card $cur_card_uid: reps $reps next_rep [clock format $next_rep -format {%H:%M:%S}]"
     next_card
 }
 
@@ -124,6 +124,7 @@ proc update_forgotten_card {} {
     global cur_card_uid
     db eval {UPDATE cards SET reps=0 WHERE uid=$cur_card_uid}
     db eval {UPDATE cards SET next_rep=0 WHERE uid=$cur_card_uid}
+    puts "Card $cur_card_uid: again"
     next_card
 }
 
@@ -178,7 +179,6 @@ proc next_card {} {
 proc show_question {} {
     global cur_card_uid question answer
     lassign [get_card $cur_card_uid] q a reps next_rep
-    puts "Card $cur_card_uid reps $reps next_rep $next_rep"
     set c [expr {$cur_card_uid % 7}]
     set fg {#b58900}
     # violet yellow red cyan magenta green orange
@@ -208,7 +208,7 @@ proc within_transaction {script} {
 }
 
 proc initialize {} {
-    global study_table_path
+    global study_table_path rounds params
     set fh [open $study_table_path]
     set content [read $fh]
     close $fh
@@ -232,7 +232,13 @@ proc initialize {} {
             warn "$file:$lnum: empty answer"
         }
         try {
-            db eval {INSERT INTO cards(question, answer, reps, next_rep) VALUES($q, $a, 0, 0)}
+            set irep 0
+            set itime 0
+            if {$params(r)} {
+                set irep 3
+                set itime [clock seconds]
+            }
+            db eval {INSERT INTO cards(question, answer, reps, next_rep) VALUES($q, $a, $irep, $itime)}
             incr ncards
         } on error {msg} {
             error "$file:$lnum: $msg"
