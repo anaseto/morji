@@ -18,7 +18,8 @@ package require sqlite3
 package require cmdline
 
 set options {
-    {hand.arg 5 "new cards per hand"}
+    {s "short review (first presentation + 1 review round at 10 min)"}
+    {l "long session (5 review rounds, 1 hour interval for last review)"}
 }
 set usage "\[-hand factor\] file"
 try {
@@ -30,6 +31,12 @@ try {
 if {[llength $argv] != 1} {
     puts stderr "Usage: $usage"
     exit 1
+}
+set rounds 4
+if {$params(s)} {
+    set rounds 1
+} elseif {$params(l)} {
+    set rounds 5
 }
 set study_table_path [lindex $argv 0]
 
@@ -63,20 +70,22 @@ proc get_new_cards {} {
 }
 
 proc get_review_cards {} {
+    global rounds
     set now [clock seconds]
     return [db eval [substcmd {
         SELECT uid FROM cards
-        WHERE reps > 0 AND reps < 5 AND next_rep < $now
+        WHERE reps > 0 AND reps <= $rounds AND next_rep < $now
         ORDER BY next_rep
         LIMIT 50
     }]]
 }
 
 proc get_out_of_schedule_cards {} {
+    global rounds
     set now [clock seconds]
     return [db eval [substcmd {
         SELECT uid FROM cards
-        WHERE reps > 0 AND reps < 5
+        WHERE reps > 0 AND reps <= $rounds
         ORDER BY next_rep
         LIMIT 4
     }]]
@@ -87,6 +96,10 @@ proc get_card {uid} {
 }
 
 proc interval {rep} {
+    global rounds
+    if {$rounds == 1 && $rep == 0} {
+        return 600
+    }
     switch $rep {
         0   { return 5 }
         1   { return 25 }
@@ -138,6 +151,10 @@ proc next_card {} {
         }
         if {[llength $cur_hand] == 0} {
             set cur_hand [get_out_of_schedule_cards]
+            if {[llength $cur_hand] > 1} {
+                # avoid showing the same card twice in a row
+                set cur_hand [lreplace $cur_hand 0 1 [lindex $cur_hand 1] [lindex $cur_hand 0]]
+            }
             set last_mode "reviewing"
         }
         puts "New hand with [llength $cur_hand] cards"
