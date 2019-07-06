@@ -77,7 +77,7 @@ proc get_review_cards {} {
         SELECT uid FROM cards
         WHERE reps > 0 AND reps <= $rounds AND next_rep < $now
         ORDER BY next_rep
-        LIMIT 50
+        LIMIT 25
     }]]
 }
 
