@@ -20,6 +20,7 @@ package require cmdline
 set options {
     {l "" "long session (5 review rounds, 1 hour interval for last review)"}
     {r "" "short review (first presentation + 1 review round at 10 min)"}
+    {S "" "sentences"}
 }
 set usage ": cram.tcl \[-r\] \[-l\] file"
 try {
@@ -249,9 +250,15 @@ proc initialize {} {
 
 wm title . "Cram Tk"
 wm geometry . =800x640
-font create QuestionFont -size 84
+set fontsize 42
+if {$params(S)} {
+    puts "LOL"
+    set fontsize 18
+    option add *wrapLength [expr {56 * $fontsize}]
+}
+font create QuestionFont -size [expr {$fontsize * 2}]
 #option add *font QuestionFont
-font create AnswerFont -size 42
+font create AnswerFont -size $fontsize
 #option add *font AnswerFont
 set question {}
 set answer {}
