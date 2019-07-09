@@ -134,7 +134,7 @@ set last_mode {}
 set showed_answer 0
 
 proc next_card {} {
-    global cur_hand last_mode cur_card_uid question answer showed_answer
+    global cur_hand last_mode cur_card_uid question answer showed_answer prev_card_uid
     if {!([llength $cur_hand] > 0)} {
         if {$last_mode eq "learning"} {
             set cur_hand [get_review_cards]
@@ -153,20 +153,20 @@ proc next_card {} {
         }
         if {[llength $cur_hand] == 0} {
             set cur_hand [get_out_of_schedule_cards]
-            if {[llength $cur_hand] > 1} {
-                # avoid showing the same card twice in a row
-                set cur_hand [lreplace $cur_hand 0 1 [lindex $cur_hand 1] [lindex $cur_hand 0]]
-            }
-            if {[llength $cur_hand] > 3} {
-                # some sane shuffling when out of schedule
-                set cur_hand [lreplace $cur_hand 2 3 [lindex $cur_hand 3] [lindex $cur_hand 2]]
-            }
             set last_mode "reviewing"
         }
         puts "New hand with [llength $cur_hand] cards"
     }
     if {[llength $cur_hand] > 0} {
+        set prev_card_uid $cur_card_uid
         set cur_card_uid [lindex $cur_hand 0]
+        if {$cur_card_uid == $prev_card_uid} {
+            if {[llength $cur_hand] > 1} {
+                # avoid showing the same card twice in a row
+                set cur_hand [lreplace $cur_hand 0 1 [lindex $cur_hand 1] [lindex $cur_hand 0]]
+            }
+            set cur_card_uid [lindex $cur_hand 0]
+        }
         show_question
         set showed_answer 0
         set cur_hand [lrange $cur_hand 1 end]
