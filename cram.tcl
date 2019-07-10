@@ -252,7 +252,6 @@ wm title . "Cram Tk"
 wm geometry . =800x640
 set fontsize 42
 if {$params(S)} {
-    puts "LOL"
     set fontsize 18
     option add *wrapLength [expr {56 * $fontsize}]
 }
