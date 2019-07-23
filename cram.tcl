@@ -18,11 +18,12 @@ package require sqlite3
 package require cmdline
 
 set options {
+    {i "" "invert fields"}
     {l "" "long session (5 review rounds, 1 hour interval for last review)"}
     {r "" "short review (first presentation + 1 review round at 10 min)"}
     {S "" "sentences"}
 }
-set usage ": cram.tcl \[-r\] \[-l\] file"
+set usage ": cram.tcl \[-i\] \[-r\] \[-l\] \[-S\] file"
 try {
     array set params [::cmdline::getoptions argv $options $usage]
 } trap {CMDLINE USAGE} {msg} {
@@ -237,6 +238,9 @@ proc initialize {} {
             if {$params(r)} {
                 set irep 3
                 set itime [clock seconds]
+            }
+            if {$params(i)} {
+                lassign [list $q $a] a q
             }
             db eval {INSERT INTO cards(question, answer, reps, next_rep) VALUES($q, $a, $irep, $itime)}
             incr ncards
