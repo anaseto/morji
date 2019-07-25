@@ -21,6 +21,7 @@ set options {
     {i "" "invert fields"}
     {l "" "long session (5 review rounds, 1 hour interval for last review)"}
     {r "" "short review (first presentation + 1 review round at 10 min)"}
+    {t "" "test review (one presentation unless forgotten)"}
     {S "" "sentences"}
 }
 set usage ": cram.tcl \[-i\] \[-r\] \[-l\] \[-S\] file"
@@ -37,6 +38,8 @@ if {[llength $argv] != 1} {
 set rounds 4
 if {$params(r)} {
     puts "Short review"
+} elseif {$params(t)} {
+    puts "Test review"
 } elseif {$params(l)} {
     puts "Long session"
     set rounds 5
@@ -223,20 +226,23 @@ proc initialize {} {
         }
         set fields [split $line \t]
         if {[llength $fields] != 2} {
-            error "$file:$lnum: incorrect number of fields: [llength $fields] (should be 2)"
+            error "$study_table_path:$lnum: incorrect number of fields: [llength $fields] (should be 2)"
         }
         lassign $fields q a
         if {$q eq ""} {
-            warn "$file:$lnum: empty question"
+            warn "$study_table_path:$lnum: empty question"
         }
         if {$a eq ""} {
-            warn "$file:$lnum: empty answer"
+            warn "$study_table_path:$lnum: empty answer"
         }
         try {
             set irep 0
             set itime 0
             if {$params(r)} {
                 set irep 3
+                set itime [clock seconds]
+            } elseif {$params(t)} {
+                set irep 4
                 set itime [clock seconds]
             }
             if {$params(i)} {
@@ -245,7 +251,7 @@ proc initialize {} {
             db eval {INSERT INTO cards(question, answer, reps, next_rep) VALUES($q, $a, $irep, $itime)}
             incr ncards
         } on error {msg} {
-            error "$file:$lnum: $msg"
+            error "$study_table_path:$lnum: $msg"
         }
     }
     puts "Studying $ncards cards."
