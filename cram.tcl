@@ -73,7 +73,7 @@ proc get_new_cards {} {
         SELECT uid FROM cards
         WHERE reps == 0
         ORDER BY uid
-        LIMIT 4
+        LIMIT 2
     }]]
 }
 
@@ -84,23 +84,26 @@ proc get_review_cards {} {
         SELECT uid FROM cards
         WHERE reps > 0 AND reps <= $rounds AND next_rep < $now
         ORDER BY next_rep
-        LIMIT 25
+        LIMIT 2
     }]]
 }
 
 proc get_out_of_schedule_cards {} {
     global rounds
-    set now [clock seconds]
     return [db eval [substcmd {
         SELECT uid FROM cards
         WHERE reps > 0 AND reps <= $rounds
         ORDER BY next_rep
-        LIMIT 4
+        LIMIT 2
     }]]
 }
 
 proc get_card {uid} {
     return [db eval {SELECT question, answer, reps, next_rep from cards WHERE uid=$uid}]
+}
+
+proc get_reps {uid} {
+    return [db eval {SELECT reps from cards WHERE uid=$uid}]
 }
 
 proc interval {rep} {
@@ -136,6 +139,8 @@ set cur_card_uid 0
 set cur_hand {}
 set last_mode {}
 set showed_answer 0
+set force_oos 0
+set oos_break 0
 
 proc next_card {} {
     global cur_hand last_mode cur_card_uid question answer showed_answer prev_card_uid
@@ -147,11 +152,20 @@ proc next_card {} {
             }
         }
         if {[llength $cur_hand] == 0} {
-            set cur_hand [get_new_cards]
+            set review_cards [get_review_cards]
+            if {[llength $review_cards] == 0} {
+                set cur_hand [get_new_cards]
+            } else {
+                lassign [get_reps [lindex $review_cards 0]] reps
+                set now [clock seconds]
+                if {$reps > 2} {
+                    set cur_hand [get_new_cards]
+                }
+            }
             if {[llength $cur_hand] > 0} {
                 set last_mode "learning"
             } else {
-                set cur_hand [get_review_cards]
+                set cur_hand $review_cards
                 set last_mode "reviewing"
             }
         }
@@ -181,8 +195,32 @@ proc next_card {} {
 }
 
 proc show_question {} {
-    global cur_card_uid question answer
+    global cur_card_uid question answer rtime force_oos oos_break
+    set now [clock seconds]
     lassign [get_card $cur_card_uid] q a reps next_rep
+    set answer {}
+    while {$now < $next_rep} {
+        set oos_break 1
+        if {$force_oos == 1} {
+            set force_oos 0
+            break
+        }
+        set mins [expr {entier(($next_rep - $now) / 60)}]
+        set seconds [expr {($next_rep - $now) - 60 * $mins}]
+        set rtime "Take a break until [clock format $next_rep -format {%H:%M:%S}] ($mins minutes $seconds seconds)"
+        .q configure -fg {#839496}
+        set question "☺"
+        set now [clock seconds]
+        after 1000 set force_oos 0
+        vwait force_oos
+    }
+    set rtime {}
+    #if {($now > $next_rep) && $reps > 0} {
+        #set mins [expr {entier(($now - $next_rep) / 60)}]
+        #set seconds [expr {($now - $next_rep) - 60 * $mins}]
+        #set rtime "late ($mins minutes $seconds seconds)"
+    #}
+    set oos_break 0
     set c [expr {$cur_card_uid % 7}]
     set fg {#b58900}
     # violet yellow red cyan magenta green orange
@@ -197,7 +235,6 @@ proc show_question {} {
     }
     .q configure -fg $fg
     set question $q
-    set answer {}
 }
 
 proc show_answer {} {
@@ -265,22 +302,34 @@ if {$params(S)} {
     set fontsize 18
     option add *wrapLength [expr {56 * $fontsize}]
 }
+font create TimeFont -size 12
 font create QuestionFont -size [expr {$fontsize * 2}]
 #option add *font QuestionFont
 font create AnswerFont -size $fontsize
 #option add *font AnswerFont
+set rtime {}
 set question {}
 set answer {}
+grid [label .rtime -textvariable rtime -font TimeFont -fg {#839496}] -sticky ew
 grid [label .q -textvariable question -font QuestionFont -fg {#b58900}] -sticky ews
 grid [label .a -textvariable answer -font AnswerFont -fg {#268bd2}] -sticky new
-grid rowconfigure . .q -weight 1 -uniform group1
-grid rowconfigure . .a -weight 1 -uniform group1
-grid columnconfigure . .q -weight 1
+grid rowconfigure . .rtime -weight 1 -uniform group1
+grid rowconfigure . .q -weight 10 -uniform group1
+grid rowconfigure . .a -weight 10 -uniform group1
+grid columnconfigure . .rtime -weight 1
 within_transaction {initialize}
 bind . Q {
     puts "See you later!"  
     exit
 }
-bind . g { within_transaction {if {$showed_answer == 1} {update_recalled_card}} }
-bind . a { within_transaction {if {$showed_answer == 1} {update_forgotten_card}} }
-bind . <space> { within_transaction {show_answer} }
+bind . <Right> { within_transaction {if {$showed_answer == 1} {update_recalled_card}} }
+bind . <Left> { within_transaction {if {$showed_answer == 1} {update_forgotten_card}} }
+bind . <Down> {
+    within_transaction {
+        if {$::oos_break} {
+            set ::force_oos 1
+        } else {
+            show_answer
+        }
+    }
+}
