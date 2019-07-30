@@ -18,11 +18,12 @@ package require sqlite3
 package require cmdline
 
 set options {
-    {i "" "invert fields"}
-    {l "" "long session (5 review rounds, 1 hour interval for last review)"}
-    {r "" "short review (first presentation + 1 review round at 10 min)"}
-    {t "" "test review (one presentation unless forgotten)"}
-    {S "" "sentences"}
+    {i "invert fields"}
+    {l "long session (5 review rounds, 1 hour interval for last review)"}
+    {r "short review (first presentation + 1 review round at 10 min)"}
+    {R "new cards in random order"}
+    {t "test review (one presentation unless forgotten)"}
+    {S "sentences"}
 }
 set usage ": cram.tcl \[-i\] \[-r\] \[-l\] \[-S\] file"
 try {
@@ -45,6 +46,9 @@ if {$params(r)} {
     set rounds 5
 } else {
     puts "Normal session"
+}
+if {$params(R)} {
+    puts "Random order"
 }
 set study_table_path [lindex $argv 0]
 
@@ -77,6 +81,17 @@ proc get_new_cards {} {
     }]]
 }
 
+if {$params(R)} {
+    proc get_new_cards {} {
+        return [db eval [substcmd {
+            SELECT uid FROM cards
+            WHERE reps == 0
+            ORDER BY random()
+            LIMIT 2
+        }]]
+    }
+}
+
 proc get_review_cards {} {
     global rounds
     set now [clock seconds]
@@ -86,6 +101,19 @@ proc get_review_cards {} {
         ORDER BY next_rep
         LIMIT 2
     }]]
+}
+
+if {$params(R)} {
+    proc get_review_cards {} {
+        global rounds
+        set now [clock seconds]
+        return [db eval [substcmd {
+            SELECT uid FROM cards
+            WHERE reps > 0 AND reps <= $rounds AND next_rep < $now
+            ORDER BY next_rep, random()
+            LIMIT 2
+        }]]
+    }
 }
 
 proc get_out_of_schedule_cards {} {
@@ -256,6 +284,7 @@ proc initialize {} {
     set lines [split $content \n]
     set lnum 0
     set ncards 0
+    set itime [clock seconds]
     foreach line $lines {
         incr lnum
         if {$line eq ""} {
@@ -277,10 +306,8 @@ proc initialize {} {
             set itime 0
             if {$params(r)} {
                 set irep 3
-                set itime [clock seconds]
             } elseif {$params(t)} {
                 set irep 4
-                set itime [clock seconds]
             }
             if {$params(i)} {
                 lassign [list $q $a] a q
