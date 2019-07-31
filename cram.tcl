@@ -18,12 +18,12 @@ package require sqlite3
 package require cmdline
 
 set options {
-    {i "invert fields"}
+    {i "invert question/answer fields"}
     {l "long session (5 review rounds, 1 hour interval for last review)"}
     {r "short review (first presentation + 1 review round at 10 min)"}
     {R "new cards in random order"}
-    {t "test review (one presentation unless forgotten)"}
     {S "sentences"}
+    {t "test review (one presentation unless forgotten)"}
 }
 set usage ": cram.tcl \[-i\] \[-r\] \[-l\] \[-S\] file"
 try {
@@ -127,11 +127,11 @@ proc get_out_of_schedule_cards {} {
 }
 
 proc get_card {uid} {
-    return [db eval {SELECT question, answer, reps, next_rep from cards WHERE uid=$uid}]
+    return [db eval {SELECT question, answer, reps, next_rep FROM cards WHERE uid=$uid}]
 }
 
 proc get_reps {uid} {
-    return [db eval {SELECT reps from cards WHERE uid=$uid}]
+    return [db onecolumn {SELECT reps FROM cards WHERE uid=$uid}]
 }
 
 proc interval {rep} {
@@ -157,6 +157,11 @@ proc update_recalled_card {} {
 
 proc update_forgotten_card {} {
     global cur_card_uid
+    set reps [get_reps $cur_card_uid]
+    if {$reps == 0} {
+        update_recalled_card
+        return
+    }
     db eval {UPDATE cards SET reps=0 WHERE uid=$cur_card_uid}
     db eval {UPDATE cards SET next_rep=0 WHERE uid=$cur_card_uid}
     puts "Card $cur_card_uid: again"
@@ -184,7 +189,7 @@ proc next_card {} {
             if {[llength $review_cards] == 0} {
                 set cur_hand [get_new_cards]
             } else {
-                lassign [get_reps [lindex $review_cards 0]] reps
+                set reps [get_reps [lindex $review_cards 0]]
                 set now [clock seconds]
                 if {$reps > 2} {
                     set cur_hand [get_new_cards]
