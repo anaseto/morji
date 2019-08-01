@@ -60,7 +60,7 @@ db eval {
         uid INTEGER PRIMARY KEY,
         question TEXT NOT NULL,
         answer TEXT NOT NULL,
-        reps INTEGER CHECK(reps >= 0 AND reps <= 5),
+        reps INTEGER CHECK(reps >= 0 AND reps <= 6),
         next_rep INTEGER CHECK(next_rep >= 0)
     );
     CREATE INDEX IF NOT EXISTS cards_idx1 ON cards(reps);
