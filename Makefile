@@ -4,6 +4,8 @@ install:
 	mkdir -p ${PREFIX}/bin
 	cp morji.tcl ${PREFIX}/bin/morji
 	chmod u+x ${PREFIX}/bin/morji
+	cp cram.tcl ${PREFIX}/bin/cram
+	chmod u+x ${PREFIX}/bin/cram
 	mkdir -p ${PREFIX}/share/man/man1
 	cp morji.1 ${PREFIX}/share/man/man1/
 	mkdir -p ${PREFIX}/share/man/man5

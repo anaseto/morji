@@ -12,6 +12,8 @@
 # WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+#
+# Key bindings: down (show answer) left (forgotten card) right (recalled card) Q (quit)
 
 package require Tk
 package require sqlite3
@@ -24,6 +26,7 @@ set options {
     {R "new cards in random order"}
     {S "sentences"}
     {t "test review (one presentation unless forgotten)"}
+    {w "write forgotten cards to file"}
 }
 set usage ": cram.tcl \[-i\] \[-r\] \[-l\] \[-S\] file"
 try {
@@ -61,7 +64,8 @@ db eval {
         question TEXT NOT NULL,
         answer TEXT NOT NULL,
         reps INTEGER CHECK(reps >= 0 AND reps <= 6),
-        next_rep INTEGER CHECK(next_rep >= 0)
+        next_rep INTEGER CHECK(next_rep >= 0),
+        forgotten INTEGER
     );
     CREATE INDEX IF NOT EXISTS cards_idx1 ON cards(reps);
     CREATE INDEX IF NOT EXISTS cards_idx2 ON cards(next_rep);
@@ -164,6 +168,7 @@ proc update_forgotten_card {} {
     }
     db eval {UPDATE cards SET reps=0 WHERE uid=$cur_card_uid}
     db eval {UPDATE cards SET next_rep=0 WHERE uid=$cur_card_uid}
+    db eval {UPDATE cards SET forgotten=forgotten+1 WHERE uid=$cur_card_uid}
     puts "Card $cur_card_uid: again"
     next_card
 }
@@ -223,6 +228,7 @@ proc next_card {} {
         set cur_hand [lrange $cur_hand 1 end]
     } else {
         puts "Finished reviewing!"
+        write_forgotten
         exit 0
     }
 }
@@ -317,7 +323,7 @@ proc initialize {} {
             if {$params(i)} {
                 lassign [list $q $a] a q
             }
-            db eval {INSERT INTO cards(question, answer, reps, next_rep) VALUES($q, $a, $irep, $itime)}
+            db eval {INSERT INTO cards(question, answer, reps, next_rep, forgotten) VALUES($q, $a, $irep, $itime, 0)}
             incr ncards
         } on error {msg} {
             error "$study_table_path:$lnum: $msg"
@@ -325,6 +331,18 @@ proc initialize {} {
     }
     puts "Studying $ncards cards."
     next_card
+}
+
+proc write_forgotten {} {
+    global study_table_path params
+    if {!$params(w)} {
+        return
+    }
+    set fh [open "${study_table_path}-forgotten.txt" w]
+    db eval {SELECT question, answer FROM cards WHERE forgotten > 0 ORDER BY forgotten DESC} {
+        puts $fh "$question\t$answer"
+    }
+    close $fh
 }
 
 wm title . "Cram Tk"
@@ -352,6 +370,7 @@ grid columnconfigure . .rtime -weight 1
 within_transaction {initialize}
 bind . Q {
     puts "See you later!"  
+    write_forgotten
     exit
 }
 bind . <Right> { within_transaction {if {$showed_answer == 1} {update_recalled_card}} }
