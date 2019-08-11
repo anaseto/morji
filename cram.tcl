@@ -28,15 +28,15 @@ set options {
     {t "test review (one presentation unless forgotten)"}
     {w "write forgotten cards to file"}
 }
-set usage ": cram.tcl \[-i\] \[-r\] \[-l\] \[-S\] file"
+set usage ": cram.tcl \[options\] file"
 try {
     array set params [::cmdline::getoptions argv $options $usage]
 } trap {CMDLINE USAGE} {msg} {
-    puts stderr "Usage: $msg"
+    puts stderr "$msg"
     exit 1
 }
 if {[llength $argv] != 1} {
-    puts stderr "Usage: $usage"
+    puts stderr "cram : cram.tcl \[options\] file"
     exit 1
 }
 set rounds 4
@@ -73,65 +73,55 @@ db eval {
 }
 
 proc substcmd {text} {
-    return [subst -nobackslashes -novariables $text]
+    uplevel "subst -nobackslashes -novariables {$text}"
 }
 
 proc get_new_cards {} {
+    global params
+    if {$params(R)} {
+        set order random()
+    } else {
+        set order uid
+    }
     return [db eval [substcmd {
         SELECT uid FROM cards
         WHERE reps == 0
-        ORDER BY uid
+        ORDER BY [set order]
         LIMIT 2
     }]]
 }
 
-if {$params(R)} {
-    proc get_new_cards {} {
-        return [db eval [substcmd {
-            SELECT uid FROM cards
-            WHERE reps == 0
-            ORDER BY random()
-            LIMIT 2
-        }]]
-    }
-}
-
 proc get_review_cards {} {
-    global rounds
+    global params rounds
+    if {$params(R)} {
+        set order "next_rep, random()"
+    } else {
+        set order next_rep
+    }
     set now [clock seconds]
     return [db eval [substcmd {
         SELECT uid FROM cards
         WHERE reps > 0 AND reps <= $rounds AND next_rep < $now
-        ORDER BY next_rep
+        ORDER BY [set order]
         LIMIT 2
     }]]
-}
-
-if {$params(R)} {
-    proc get_review_cards {} {
-        global rounds
-        set now [clock seconds]
-        return [db eval [substcmd {
-            SELECT uid FROM cards
-            WHERE reps > 0 AND reps <= $rounds AND next_rep < $now
-            ORDER BY next_rep, random()
-            LIMIT 2
-        }]]
-    }
 }
 
 proc get_out_of_schedule_cards {} {
     global rounds
-    return [db eval [substcmd {
+    return [db eval {
         SELECT uid FROM cards
         WHERE reps > 0 AND reps <= $rounds
         ORDER BY next_rep
         LIMIT 2
-    }]]
+    }]
 }
 
 proc get_card {uid} {
-    return [db eval {SELECT question, answer, reps, next_rep FROM cards WHERE uid=$uid}]
+    return [db eval {
+        SELECT question, answer, reps, next_rep FROM cards
+        WHERE uid=$uid
+    }]
 }
 
 proc get_reps {uid} {
@@ -148,13 +138,18 @@ proc interval {rep} {
         default   { return 999999 }
     }
 }
+
+proc card_set {set_code} {
+    uplevel "db eval {UPDATE cards SET $set_code WHERE uid=\$cur_card_uid}"
+}
+
 proc update_recalled_card {} {
     global cur_card_uid
     lassign [get_card $cur_card_uid] question answer reps next_rep
     set next_rep [clock add [clock seconds] [interval $reps] seconds]
     incr reps
-    db eval {UPDATE cards SET reps=$reps WHERE uid=$cur_card_uid}
-    db eval {UPDATE cards SET next_rep=$next_rep WHERE uid=$cur_card_uid}
+    card_set {reps=$reps}
+    card_set {next_rep=$next_rep}
     puts "Card $cur_card_uid: reps $reps next_rep [clock format $next_rep -format {%H:%M:%S}]"
     next_card
 }
@@ -166,9 +161,9 @@ proc update_forgotten_card {} {
         update_recalled_card
         return
     }
-    db eval {UPDATE cards SET reps=0 WHERE uid=$cur_card_uid}
-    db eval {UPDATE cards SET next_rep=0 WHERE uid=$cur_card_uid}
-    db eval {UPDATE cards SET forgotten=forgotten+1 WHERE uid=$cur_card_uid}
+    card_set {reps=0}
+    card_set {next_rep=0}
+    card_set {forgotten=forgotten+1}
     puts "Card $cur_card_uid: again"
     next_card
 }
@@ -246,7 +241,8 @@ proc show_question {} {
         }
         set mins [expr {entier(($next_rep - $now) / 60)}]
         set seconds [expr {($next_rep - $now) - 60 * $mins}]
-        set rtime "Take a break until [clock format $next_rep -format {%H:%M:%S}] ($mins minutes $seconds seconds)"
+        set nr [clock format $next_rep -format {%H:%M:%S}]
+        set rtime "Take a break until $nr ($mins minutes $seconds seconds)"
         .q configure -fg {#839496}
         set question "☺"
         set now [clock seconds]
@@ -254,24 +250,19 @@ proc show_question {} {
         vwait force_oos
     }
     set rtime {}
-    #if {($now > $next_rep) && $reps > 0} {
-        #set mins [expr {entier(($now - $next_rep) / 60)}]
-        #set seconds [expr {($now - $next_rep) - 60 * $mins}]
-        #set rtime "late ($mins minutes $seconds seconds)"
-    #}
     set oos_break 0
-    set c [expr {$cur_card_uid % 7}]
-    set fg {#b58900}
     # violet yellow red cyan magenta green orange
-    switch $c {
-        0 {set fg {#6c71c4}}
-        1 {set fg {#b58900}}
-        2 {set fg {#dc322f}}
-        3 {set fg {#2aa198}}
-        4 {set fg {#d33682}}
-        5 {set fg {#859900}}
-        6 {set fg {#cb4b16}}
+    set colors {
+        {#6c71c4}
+        {#b58900}
+        {#dc322f}
+        {#2aa198}
+        {#d33682}
+        {#859900}
+        {#cb4b16}
     }
+    set c [expr {$cur_card_uid % [llength $colors]}]
+    set fg [lindex $colors $c]
     .q configure -fg $fg
     set question $q
 }
@@ -312,22 +303,25 @@ proc initialize {} {
         if {$a eq ""} {
             warn "$study_table_path:$lnum: empty answer"
         }
+        set irep 0
+        set itime 0
+        if {$params(r)} {
+            set irep 3
+        } elseif {$params(t)} {
+            set irep 4
+        }
+        if {$params(i)} {
+            lassign [list $q $a] a q
+        }
         try {
-            set irep 0
-            set itime 0
-            if {$params(r)} {
-                set irep 3
-            } elseif {$params(t)} {
-                set irep 4
+            db eval {
+                INSERT INTO cards(question, answer, reps, next_rep, forgotten)
+                VALUES($q, $a, $irep, $itime, 0)
             }
-            if {$params(i)} {
-                lassign [list $q $a] a q
-            }
-            db eval {INSERT INTO cards(question, answer, reps, next_rep, forgotten) VALUES($q, $a, $irep, $itime, 0)}
-            incr ncards
         } on error {msg} {
             error "$study_table_path:$lnum: $msg"
         }
+        incr ncards
     }
     puts "Studying $ncards cards."
     next_card
@@ -339,7 +333,11 @@ proc write_forgotten {} {
         return
     }
     set fh [open "${study_table_path}-forgotten.txt" w]
-    db eval {SELECT question, answer FROM cards WHERE forgotten > 0 ORDER BY forgotten DESC} {
+    db eval {
+        SELECT question, answer FROM cards
+        WHERE forgotten > 0
+        ORDER BY forgotten DESC
+    } {
         puts $fh "$question\t$answer"
     }
     close $fh
