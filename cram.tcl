@@ -143,6 +143,14 @@ proc card_set {set_code} {
     uplevel "db eval {UPDATE cards SET $set_code WHERE uid=\$cur_card_uid}"
 }
 
+proc next_card_pause {} {
+    global nc_pause question answer 
+    set question {}
+    set answer {}
+    after 1000 set nc_pause 0
+    vwait nc_pause
+}
+
 proc update_recalled_card {} {
     global cur_card_uid
     lassign [get_card $cur_card_uid] question answer reps next_rep
@@ -151,6 +159,7 @@ proc update_recalled_card {} {
     card_set {reps=$reps}
     card_set {next_rep=$next_rep}
     puts "Card $cur_card_uid: reps $reps next_rep [clock format $next_rep -format {%H:%M:%S}]"
+    next_card_pause
     next_card
 }
 
@@ -165,6 +174,7 @@ proc update_forgotten_card {} {
     card_set {next_rep=0}
     card_set {forgotten=forgotten+1}
     puts "Card $cur_card_uid: again"
+    next_card_pause
     next_card
 }
 
@@ -239,8 +249,12 @@ proc show_question {} {
             set force_oos 0
             break
         }
-        set mins [expr {entier(($next_rep - $now) / 60)}]
-        set seconds [expr {($next_rep - $now) - 60 * $mins}]
+        set mins [expr {
+            entier(($next_rep - $now) / 60)
+        }]
+        set seconds [expr {
+            ($next_rep - $now) - 60 * $mins
+        }]
         set nr [clock format $next_rep -format {%H:%M:%S}]
         set rtime "Take a break until $nr ($mins minutes $seconds seconds)"
         .q configure -fg {#839496}
@@ -261,7 +275,7 @@ proc show_question {} {
         {#859900}
         {#cb4b16}
     }
-    set c [expr {$cur_card_uid % [llength $colors]}]
+    set c [expr { $cur_card_uid % [llength $colors] }]
     set fg [lindex $colors $c]
     .q configure -fg $fg
     set question $q
@@ -353,26 +367,38 @@ if {$params(S)} {
 font create TimeFont -size 12
 font create QuestionFont -size [expr {$fontsize * 2}]
 #option add *font QuestionFont
-font create AnswerFont -size $fontsize
+if {$params(S)} {
+    font create AnswerFont -size 24
+} else {
+    font create AnswerFont -size $fontsize
+}
 #option add *font AnswerFont
 set rtime {}
 set question {}
 set answer {}
 grid [label .rtime -textvariable rtime -font TimeFont -fg {#839496}] -sticky ew
 grid [label .q -textvariable question -font QuestionFont -fg {#b58900}] -sticky ews
-grid [label .a -textvariable answer -font AnswerFont -fg {#268bd2}] -sticky new
+grid [label .a -textvariable answer -font AnswerFont -fg {#839496}] -sticky new
 grid rowconfigure . .rtime -weight 1 -uniform group1
 grid rowconfigure . .q -weight 10 -uniform group1
 grid rowconfigure . .a -weight 10 -uniform group1
 grid columnconfigure . .rtime -weight 1
-within_transaction {initialize}
+within_transaction initialize
 bind . Q {
     puts "See you later!"  
     write_forgotten
     exit
 }
-bind . <Right> { within_transaction {if {$showed_answer == 1} {update_recalled_card}} }
-bind . <Left> { within_transaction {if {$showed_answer == 1} {update_forgotten_card}} }
+bind . <Right> {
+    within_transaction {
+        if {$showed_answer == 1} update_recalled_card
+    }
+}
+bind . <Left> {
+    within_transaction {
+        if {$showed_answer == 1} update_forgotten_card
+    }
+}
 bind . <Down> {
     within_transaction {
         if {$::oos_break} {
