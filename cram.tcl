@@ -153,7 +153,7 @@ proc next_card_pause {} {
 
 proc update_recalled_card {} {
     global cur_card_uid
-    lassign [get_card $cur_card_uid] question answer reps next_rep
+    lassign [get_card $cur_card_uid] q a reps next_rep
     set next_rep [clock add [clock seconds] [interval $reps] seconds]
     incr reps
     card_set {reps=$reps}
@@ -282,8 +282,10 @@ proc show_question {} {
 }
 
 proc show_answer {} {
-    global cur_card_uid answer showed_answer
+    global cur_card_uid answer showed_answer ans_pause
     lassign [get_card $cur_card_uid] q a reps next_rep
+    after 250 set ans_pause 0
+    vwait ans_pause
     set answer $a
     set showed_answer 1
 }
