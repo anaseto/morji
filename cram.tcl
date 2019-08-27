@@ -410,3 +410,6 @@ bind . <Down> {
         }
     }
 }
+bind . <Key-F1> {
+    tk_messageBox -message "Help" -detail "Key bindings:\n- down (show answer)\n- left (forgotten card)\n- right (recalled card)\n- Q (quit)" -type ok -icon info
+}
