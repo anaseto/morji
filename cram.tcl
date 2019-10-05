@@ -21,14 +21,13 @@ package require cmdline
 
 set options {
     {i "invert question/answer fields"}
-    {l "long session (5 review rounds, 1 hour interval for last review)"}
-    {r "short review (first presentation + 1 review round at 10 min)"}
-    {R "new cards in random order"}
-    {S "sentences"}
-    {t "test review (one presentation unless forgotten)"}
-    {w "write forgotten cards to file"}
+    {l "long session (5 review rounds, instead of 4 rounds)"}
+    {r "new cards in random order"}
+    {S "smaller font"}
+    {t "test session (no extra reviews, unless forgotten)"}
+    {w "write forgotten cards to file ('cram-forgotten-cards-' as name prefix)"}
 }
-set usage ": cram.tcl \[options\] file"
+set usage ": tclsh8.6 cram.tcl \[options\] file"
 try {
     array set params [::cmdline::getoptions argv $options $usage]
 } trap {CMDLINE USAGE} {msg} {
@@ -36,22 +35,20 @@ try {
     exit 1
 }
 if {[llength $argv] != 1} {
-    puts stderr "cram : cram.tcl \[options\] file"
+    puts stderr "cram: tclsh8.6 cram.tcl \[options\] file"
     exit 1
 }
 set rounds 4
-if {$params(r)} {
-    puts "Short review"
-} elseif {$params(t)} {
-    puts "Test review"
+if {$params(t)} {
+    puts "Test session"
 } elseif {$params(l)} {
-    puts "Long session"
+    puts "Long learning session"
     set rounds 5
 } else {
-    puts "Normal session"
+    puts "Normal learning session"
 }
-if {$params(R)} {
-    puts "Random order"
+if {$params(r)} {
+    puts "New cards in random order"
 }
 set study_table_path [lindex $argv 0]
 
@@ -78,7 +75,7 @@ proc substcmd {text} {
 
 proc get_new_cards {} {
     global params
-    if {$params(R)} {
+    if {$params(r)} {
         set order random()
     } else {
         set order uid
@@ -93,10 +90,10 @@ proc get_new_cards {} {
 
 proc get_review_cards {} {
     global params rounds
-    if {$params(R)} {
-        set order "next_rep, random()"
+    if {$params(r)} {
+        set order "reps, next_rep, random()"
     } else {
-        set order next_rep
+        set order "reps, next_rep"
     }
     set now [clock seconds]
     return [db eval [substcmd {
@@ -216,7 +213,6 @@ proc next_card {} {
             set cur_hand [get_out_of_schedule_cards]
             set last_mode "reviewing"
         }
-        puts "New hand with [llength $cur_hand] cards"
     }
     if {[llength $cur_hand] > 0} {
         set prev_card_uid $cur_card_uid
@@ -296,6 +292,10 @@ proc within_transaction {script} {
 
 proc initialize {} {
     global study_table_path rounds params
+    if {![file readable $study_table_path]} {
+        puts stderr "cram: cannot read file $study_table_path"
+        exit 1
+    }
     set fh [open $study_table_path]
     set content [read $fh]
     close $fh
@@ -310,20 +310,19 @@ proc initialize {} {
         }
         set fields [split $line \t]
         if {[llength $fields] != 2} {
-            error "$study_table_path:$lnum: incorrect number of fields: [llength $fields] (should be 2)"
+            puts stderr "cram: $study_table_path: $lnum: incorrect number of fields: [llength $fields] (expected 2 tab-separated columns)"
+            exit 1
         }
         lassign $fields q a
         if {$q eq ""} {
-            warn "$study_table_path:$lnum: empty question"
+            warn "cram: $study_table_path:$lnum: empty question"
         }
         if {$a eq ""} {
-            warn "$study_table_path:$lnum: empty answer"
+            warn "cram: $study_table_path:$lnum: empty answer"
         }
         set irep 0
         set itime 0
-        if {$params(r)} {
-            set irep 3
-        } elseif {$params(t)} {
+        if {$params(t)} {
             set irep 4
         }
         if {$params(i)} {
@@ -335,11 +334,11 @@ proc initialize {} {
                 VALUES($q, $a, $irep, $itime, 0)
             }
         } on error {msg} {
-            error "$study_table_path:$lnum: $msg"
+            error "cram: $study_table_path:$lnum: $msg"
         }
         incr ncards
     }
-    puts "Studying $ncards cards."
+    puts "Number of cards: $ncards"
     next_card
 }
 
@@ -348,7 +347,7 @@ proc write_forgotten {} {
     if {!$params(w)} {
         return
     }
-    set fh [open "${study_table_path}-forgotten.txt" w]
+    set fh [open "cram-forgotten-cards-${study_table_path}" w]
     db eval {
         SELECT question, answer FROM cards
         WHERE forgotten > 0
