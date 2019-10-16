@@ -125,7 +125,7 @@ proc get_reps {uid} {
     return [db onecolumn {SELECT reps FROM cards WHERE uid=$uid}]
 }
 
-proc interval {rep} {
+proc next_interval {rep} {
     switch $rep {
         0   { return 5 }
         1   { return 25 }
@@ -151,7 +151,7 @@ proc next_card_pause {} {
 proc update_recalled_card {} {
     global cur_card_uid
     lassign [get_card $cur_card_uid] q a reps next_rep
-    set next_rep [clock add [clock seconds] [interval $reps] seconds]
+    set next_rep [clock add [clock seconds] [next_interval $reps] seconds]
     incr reps
     card_set {reps=$reps}
     card_set {next_rep=$next_rep}
@@ -239,25 +239,40 @@ proc show_question {} {
     set now [clock seconds]
     lassign [get_card $cur_card_uid] q a reps next_rep
     set answer {}
-    while {$now < $next_rep} {
-        set oos_break 1
-        if {$force_oos == 1} {
-            set force_oos 0
-            break
+    set wait 0
+    if {$now < $next_rep} {
+        set wait 1
+    }
+    if {$wait} {
+        switch $reps {
+            1 {if {$now + 1 >= $next_rep} { set wait 0 }}
+            2 {if {$now + 5 >= $next_rep} { set wait 0 }}
+            3 {if {$now + 24 >= $next_rep} { set wait 0 }}
+            4 {if {$now + 120 >= $next_rep} { set wait 0 }}
+            5 {if {$now + 720 >= $next_rep} { set wait 0 }}
         }
-        set mins [expr {
-            entier(($next_rep - $now) / 60)
-        }]
-        set seconds [expr {
-            ($next_rep - $now) - 60 * $mins
-        }]
-        set nr [clock format $next_rep -format {%H:%M:%S}]
-        set rtime "Take a break until $nr ($mins minutes $seconds seconds)"
-        .q configure -fg {#839496}
-        set question "☺"
-        set now [clock seconds]
-        after 1000 set force_oos 0
-        vwait force_oos
+    }
+    if {$wait} {
+        while {$now < $next_rep} {
+            set oos_break 1
+            if {$force_oos == 1} {
+                set force_oos 0
+                break
+            }
+            set mins [expr {
+                entier(($next_rep - $now) / 60)
+            }]
+            set seconds [expr {
+                ($next_rep - $now) - 60 * $mins
+            }]
+            set nr [clock format $next_rep -format {%H:%M:%S}]
+            set rtime "Take a break until $nr ($mins minutes $seconds seconds)"
+            .q configure -fg {#839496}
+            set question "☺"
+            set now [clock seconds]
+            after 1000 set force_oos 0
+            vwait force_oos
+        }
     }
     set rtime {}
     set oos_break 0
