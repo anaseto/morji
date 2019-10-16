@@ -196,9 +196,10 @@ proc next_card {} {
             if {[llength $review_cards] == 0} {
                 set cur_hand [get_new_cards]
             } else {
-                set reps [get_reps [lindex $review_cards 0]]
+                lassign [get_card [lindex $review_cards 0]] q a reps next_rep
                 set now [clock seconds]
-                if {$reps > 2} {
+                # favour new cards if there are only old cards, unless we are too late
+                if {($reps == 3 && $next_rep + 25 >= $now) || ($reps > 3 && $next_rep + 120 >= $now)} {
                     set cur_hand [get_new_cards]
                 }
             }
