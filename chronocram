@@ -25,9 +25,9 @@ set options {
     {r "new cards in random order"}
     {S "smaller font"}
     {t "test session (no extra reviews, unless forgotten)"}
-    {w "write forgotten cards to file ('cram-forgotten-cards-' as name prefix)"}
+    {w "write forgotten cards to file ('chronocram-forgotten-cards-' as name prefix)"}
 }
-set usage ": tclsh8.6 cram.tcl \[options\] file"
+set usage ": tclsh8.6 chronocram \[options\] file"
 try {
     array set params [::cmdline::getoptions argv $options $usage]
 } trap {CMDLINE USAGE} {msg} {
@@ -35,7 +35,7 @@ try {
     exit 1
 }
 if {[llength $argv] != 1} {
-    puts stderr "cram: tclsh8.6 cram.tcl \[options\] file"
+    puts stderr "chronocram: tclsh8.6 chronocram \[options\] file"
     exit 1
 }
 set rounds 4
@@ -320,7 +320,7 @@ proc within_transaction {script} {
 proc initialize {} {
     global study_table_path rounds params
     if {![file readable $study_table_path]} {
-        puts stderr "cram: cannot read file $study_table_path"
+        puts stderr "chronocram: cannot read file $study_table_path"
         exit 1
     }
     set fh [open $study_table_path]
@@ -337,15 +337,15 @@ proc initialize {} {
         }
         set fields [split $line \t]
         if {[llength $fields] != 2} {
-            puts stderr "cram: $study_table_path: $lnum: incorrect number of fields: [llength $fields] (expected 2 tab-separated columns)"
+            puts stderr "chronocram: $study_table_path: $lnum: incorrect number of fields: [llength $fields] (expected 2 tab-separated columns)"
             exit 1
         }
         lassign $fields q a
         if {$q eq ""} {
-            warn "cram: $study_table_path:$lnum: empty question"
+            warn "chronocram: $study_table_path:$lnum: empty question"
         }
         if {$a eq ""} {
-            warn "cram: $study_table_path:$lnum: empty answer"
+            warn "chronocram: $study_table_path:$lnum: empty answer"
         }
         set irep 0
         set itime 0
@@ -361,7 +361,7 @@ proc initialize {} {
                 VALUES($q, $a, $irep, $itime, 0)
             }
         } on error {msg} {
-            error "cram: $study_table_path:$lnum: $msg"
+            error "chronocram: $study_table_path:$lnum: $msg"
         }
         incr ncards
     }
@@ -374,7 +374,7 @@ proc write_forgotten {} {
     if {!$params(w)} {
         return
     }
-    set fh [open "cram-forgotten-cards-${study_table_path}" w]
+    set fh [open "chronocram-forgotten-cards-${study_table_path}" w]
     db eval {
         SELECT question, answer FROM cards
         WHERE forgotten > 0
@@ -385,7 +385,7 @@ proc write_forgotten {} {
     close $fh
 }
 
-wm title . "Cram Tk"
+wm title . "Chronocram Tk"
 wm geometry . =800x640
 set fontsize 42
 if {$params(S)} {
@@ -439,3 +439,4 @@ bind . <Down> {
 bind . <Key-F1> {
     tk_messageBox -message "Help" -detail "Key bindings:\n- down (show answer)\n- left (forgotten card)\n- right (recalled card)\n- Q (quit)" -type ok -icon info
 }
+# vim:ft=tcl
