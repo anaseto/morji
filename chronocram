@@ -417,6 +417,11 @@ bind . Q {
     write_forgotten
     exit
 }
+wm protocol . WM_DELETE_WINDOW {
+    puts "See you later!"  
+    write_forgotten
+    exit
+}
 bind . <Right> {
     within_transaction {
         if {$showed_answer == 1} update_recalled_card
