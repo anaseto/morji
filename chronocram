@@ -22,6 +22,7 @@ package require cmdline
 set options {
     {i "invert question/answer fields"}
     {l "long session (5 review rounds, instead of 4 rounds)"}
+    {L "light background color scheme"}
     {r "new cards in random order"}
     {S "smaller font"}
     {t "test session (no extra reviews, unless forgotten)"}
@@ -49,6 +50,12 @@ if {$params(t)} {
 }
 if {$params(r)} {
     puts "New cards in random order"
+}
+set colorFg {#839496}
+set colorBg {#002b36}
+if {$params(L)} {
+    set colorFg {#657b83}
+    set colorBg {#fdf6e3}
 }
 set study_table_path [lindex $argv 0]
 
@@ -247,7 +254,7 @@ proc next_card {} {
 }
 
 proc show_question {} {
-    global cur_card_uid question answer rtime force_oos oos_break
+    global cur_card_uid question answer rtime force_oos oos_break colorFg
     set now [clock seconds]
     lassign [get_card $cur_card_uid] q a reps next_rep
     set answer {}
@@ -279,7 +286,7 @@ proc show_question {} {
             }]
             set nr [clock format $next_rep -format {%H:%M:%S}]
             set rtime "Take a break until $nr ($mins minutes $seconds seconds)"
-            .q configure -fg {#839496}
+            .q configure -fg $colorFg
             set question "☺"
             set now [clock seconds]
             after 1000 set force_oos 0
@@ -402,9 +409,10 @@ if {$params(S)} {
 set rtime {}
 set question {}
 set answer {}
-grid [label .rtime -textvariable rtime -font TimeFont -fg {#839496}] -sticky ew
-grid [label .q -textvariable question -font QuestionFont -fg {#b58900}] -sticky ews
-grid [label .a -textvariable answer -font AnswerFont -fg {#839496}] -sticky new
+. configure -background $colorBg
+grid [label .rtime -textvariable rtime -font TimeFont -fg $colorFg -bg $colorBg] -sticky ew
+grid [label .q -textvariable question -font QuestionFont -fg {#b58900} -bg $colorBg] -sticky ews
+grid [label .a -textvariable answer -font AnswerFont -fg $colorFg -bg $colorBg] -sticky new
 grid rowconfigure . .rtime -weight 1 -uniform group1
 grid rowconfigure . .q -weight 10 -uniform group1
 grid rowconfigure . .a -weight 10 -uniform group1
