@@ -132,7 +132,7 @@ proc next_interval {rep} {
         2   { return 120 }
         3   { return 600 }
         4   { return 3600 }
-        default   { return 999999 }
+        default   { return 18000 }
     }
 }
 
@@ -167,9 +167,20 @@ proc update_forgotten_card {} {
         update_recalled_card
         return
     }
+    if {$reps >= 3} {
+        # if it's >= 3, you probably remember it at least a little, so start at
+        # reps=1. Works better too with -t option.
+        card_set {reps=0}
+        card_set {forgotten=forgotten+1}
+        update_recalled_card
+        return
+    }
     card_set {reps=0}
     card_set {next_rep=0}
-    card_set {forgotten=forgotten+1}
+    if {$reps > 1} {
+        # if reps <= 1, it is not really forgotten, it is almost new or already forgotten.
+        card_set {forgotten=forgotten+1}
+    }
     puts "Card $cur_card_uid: again"
     next_card_pause
     next_card
