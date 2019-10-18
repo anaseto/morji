@@ -394,13 +394,11 @@ if {$params(S)} {
 }
 font create TimeFont -size 12
 font create QuestionFont -size [expr {$fontsize * 2}]
-#option add *font QuestionFont
 if {$params(S)} {
     font create AnswerFont -size 24
 } else {
     font create AnswerFont -size $fontsize
 }
-#option add *font AnswerFont
 set rtime {}
 set question {}
 set answer {}
