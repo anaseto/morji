@@ -20,7 +20,7 @@ The program, its customization and card syntax creation are explained in the
 available in html form too in the [morji
 website](https://bardinflor.perso.aquilenet.fr/morji/intro-en).
 
-The *chronocram* program is a complementary flashcard program for easier
+The *chronocram* program is a complementary flashcard Tk program for easier
 initial memorization of simple cards using several spaced repetitions on the
 same session.
 
