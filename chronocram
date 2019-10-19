@@ -1,4 +1,6 @@
-#!/usr/bin/env tclsh8.6
+#!/bin/sh
+# the next line starts using tclsh \
+exec tclsh8.6 "$0" ${1+"$@"}
 # Copyright (c) 2019 Yon <anaseto@bardinflor.perso.aquilenet.fr>
 #
 # Permission to use, copy, modify, and distribute this software for any
@@ -15,18 +17,20 @@
 #
 # Key bindings: down (show answer) left (forgotten card) right (recalled card) Q (quit)
 
+set argv [linsert $argv 0 --]
 package require Tk
 package require sqlite3
 package require cmdline
 
 set options {
-    {i "invert question/answer fields"}
-    {l "long session (5 review rounds, instead of 4 rounds)"}
-    {L "light background color scheme"}
-    {r "new cards in random order"}
-    {S "smaller font"}
-    {t "test session (no extra reviews, unless forgotten)"}
-    {w "write forgotten cards to file ('chronocram-forgotten-cards-' as name prefix)"}
+    {i "Invert question/answer fields"}
+    {l "Long session (5 review rounds, instead of 4 rounds)"}
+    {L "Light background color scheme"}
+    {r "New cards in random order"}
+    {s "Smaller font"}
+    {t "Test session (no extra reviews, unless forgotten)"}
+    {v "Show version"}
+    {w "Write forgotten cards to file ('chronocram-forgotten-cards-' as name prefix)"}
 }
 set usage ": tclsh8.6 chronocram \[options\] file"
 try {
@@ -34,6 +38,10 @@ try {
 } trap {CMDLINE USAGE} {msg} {
     puts stderr "$msg"
     exit 1
+}
+if {$params(v)} {
+    puts "v0.1"
+    exit 0
 }
 if {[llength $argv] != 1} {
     puts stderr "chronocram: tclsh8.6 chronocram \[options\] file"
@@ -395,13 +403,13 @@ proc write_forgotten {} {
 wm title . "Chronocram Tk"
 wm geometry . =800x640
 set fontsize 42
-if {$params(S)} {
+if {$params(s)} {
     set fontsize 18
     option add *wrapLength [expr {56 * $fontsize}]
 }
 font create TimeFont -size 12
 font create QuestionFont -size [expr {$fontsize * 2}]
-if {$params(S)} {
+if {$params(s)} {
     font create AnswerFont -size 24
 } else {
     font create AnswerFont -size $fontsize
