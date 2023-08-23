@@ -1,3 +1,5 @@
+**Migrated to https://codeberg.org/anaseto/morji** (because of 2FA requirement)
+
 Description
 -----------
 
